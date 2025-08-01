@@ -1,0 +1,76 @@
+import { NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { LocationService } from '@/services'
+
+export async function GET(
+  request: Request,
+  { params }: { params: { locationId: string } }
+) {
+  try {
+    const session = await auth()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const location = await LocationService.getLocationById(params.locationId)
+    
+    if (!location) {
+      return NextResponse.json({ error: 'Location not found' }, { status: 404 })
+    }
+    
+    return NextResponse.json(location)
+  } catch (error) {
+    console.error('Error fetching location:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { locationId: string } }
+) {
+  try {
+    const session = await auth()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const data = await request.json()
+    
+    const location = await LocationService.updateLocation(params.locationId, {
+      name: data.name,
+      description: data.description,
+      geography: data.geography,
+      culture: data.culture,
+      rules: data.rules,
+      imageUrl: data.imageUrl
+    })
+    
+    return NextResponse.json(location)
+  } catch (error) {
+    console.error('Error updating location:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { locationId: string } }
+) {
+  try {
+    const session = await auth()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    await LocationService.deleteLocation(params.locationId)
+    
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error) {
+    console.error('Error deleting location:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+} 

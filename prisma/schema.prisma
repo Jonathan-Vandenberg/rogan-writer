@@ -1,0 +1,519 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== USER MANAGEMENT & NEXTAUTH =====
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  emailVerified DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // User preferences
+  theme            String @default("light") // light, dark
+  defaultBookFormat String @default("6x9") // book size preference
+  dailyWordGoal    Int    @default(500)
+
+  // NextAuth relationships
+  accounts Account[]
+  sessions Session[]
+
+  // Application relationships
+  books           Book[]
+  writingSessions WritingSession[]
+  exports         Export[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// ===== BOOK MANAGEMENT =====
+model Book {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  genre       String?
+  targetWords Int?
+  status      BookStatus @default(DRAFT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Book formatting
+  pageWidth   Float @default(6.0)   // inches
+  pageHeight  Float @default(9.0)   // inches
+  fontSize    Int   @default(12)
+  fontFamily  String @default("Verdana")
+  lineHeight  Float @default(1.5)
+  marginTop   Float @default(0.7)
+  marginBottom Float @default(1.0)
+  marginLeft  Float @default(1.0)
+  marginRight Float @default(1.0)
+
+  // Cover
+  coverImageUrl String?
+
+  // Author
+  userId String
+  author User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  chapters          Chapter[]
+  brainstormingNotes BrainstormingNote[]
+  characters        Character[]
+  locations         Location[]
+  plotPoints        PlotPoint[]
+  timelineEvents    TimelineEvent[]
+  researchItems     ResearchItem[]
+  sceneCards        SceneCard[]
+  writingSessions   WritingSession[]
+  collaborators     BookCollaborator[]
+  exports           Export[]
+  versions          BookVersion[]
+
+  @@map("books")
+}
+
+model Chapter {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  content     String   @default("") @db.Text // Full chapter content as continuous text
+  orderIndex  Int
+  wordCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // AI Analysis
+  lastGrammarCheck DateTime?
+  grammarScore     Float?
+  readabilityScore Float?
+  paceScore        Float?
+  // embedding        Unsupported("vector(1536)")? // AI embedding for context
+
+  // Relationships
+  pages        Page[]
+  sceneCards   SceneCard[]
+  plotPoints   PlotPoint[]
+  comments     Comment[]
+
+  @@unique([bookId, orderIndex])
+  @@map("chapters")
+}
+
+model Page {
+  id         String   @id @default(cuid())
+  pageNumber Int
+  startPosition Int @default(0) // Character position where this page starts in chapter content
+  endPosition   Int @default(0) // Character position where this page ends in chapter content
+  wordCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Chapter relationship
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  comments Comment[]
+
+  @@unique([chapterId, pageNumber])
+  @@map("pages")
+}
+
+// ===== BRAINSTORMING & IDEAS =====
+model BrainstormingNote {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  tags      String[] // Array of tags for categorization
+  embedding Unsupported("vector(1536)")? // AI embedding for semantic search
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("brainstorming_notes")
+}
+
+// ===== CHARACTER & WORLD BUILDING =====
+model Character {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  appearance  String?
+  personality String?
+  backstory   String?
+  role        CharacterRole @default(MINOR)
+  imageUrl    String?
+  embedding   Unsupported("vector(1536)")? // AI embedding for character context
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Character relationships
+  relationships CharacterRelationship[] @relation("CharacterFrom")
+  relatedTo     CharacterRelationship[] @relation("CharacterTo")
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Timeline appearances
+  timelineEvents TimelineEvent[]
+
+  @@map("characters")
+}
+
+model CharacterRelationship {
+  id           String @id @default(cuid())
+  relationship String // "friend", "enemy", "family", "romantic", etc.
+  description  String?
+
+  characterFromId String
+  characterFrom   Character @relation("CharacterFrom", fields: [characterFromId], references: [id], onDelete: Cascade)
+
+  characterToId String
+  characterTo   Character @relation("CharacterTo", fields: [characterToId], references: [id], onDelete: Cascade)
+
+  @@unique([characterFromId, characterToId])
+  @@map("character_relationships")
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  geography   String?
+  culture     String?
+  rules       String?  // World-building rules
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Timeline events in this location
+  timelineEvents TimelineEvent[]
+
+  @@map("locations")
+}
+
+// ===== PLOT STRUCTURE (7-Point System) =====
+model PlotPoint {
+  id          String    @id @default(cuid())
+  type        PlotPointType
+  title       String
+  description String?
+  orderIndex  Int
+  completed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Subplot categorization
+  subplot     String?   // "main", "romance", "character", "action", etc.
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Optional chapter relationship
+  chapterId String?
+  chapter   Chapter? @relation(fields: [chapterId], references: [id])
+
+  @@unique([bookId, type, subplot])
+  @@map("plot_points")
+}
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  eventDate   String?  // In-story date/time (for display)
+  startTime   Int      // Start time unit (integer)
+  endTime     Int      // End time unit (integer)
+  orderIndex  Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Optional relationships
+  characterId String?
+  character   Character? @relation(fields: [characterId], references: [id])
+
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  @@map("timeline_events")
+}
+
+model SceneCard {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  purpose     String?  // Scene's purpose in the story
+  conflict    String?  // Main conflict in the scene
+  outcome     String?  // Scene outcome
+  orderIndex  Int
+  wordCount   Int      @default(0)
+  status      SceneStatus @default(PLANNED)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Optional chapter relationship
+  chapterId String?
+  chapter   Chapter? @relation(fields: [chapterId], references: [id])
+
+  @@map("scene_cards")
+}
+
+model ResearchItem {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?
+  url         String?
+  imageUrl    String?
+  tags        String[] // Array of tags
+  itemType    ResearchType @default(NOTE)
+  embedding   Unsupported("vector(1536)")? // AI embedding for semantic search
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("research_items")
+}
+
+// ===== WRITING STATISTICS & GOALS =====
+model WritingSession {
+  id         String   @id @default(cuid())
+  startTime  DateTime
+  endTime    DateTime?
+  wordsWritten Int    @default(0)
+  targetWords  Int?
+  notes      String?
+  completed  Boolean  @default(false)
+
+  // User relationship
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Optional book relationship
+  bookId String?
+  book   Book?   @relation(fields: [bookId], references: [id])
+
+  @@map("writing_sessions")
+}
+
+// ===== COLLABORATION =====
+model BookCollaborator {
+  id        String   @id @default(cuid())
+  email     String
+  role      CollaboratorRole
+  inviteStatus InviteStatus @default(PENDING)
+  invitedAt DateTime @default(now())
+  joinedAt  DateTime?
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Comments by this collaborator
+  comments Comment[]
+
+  @@unique([bookId, email])
+  @@map("book_collaborators")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Author of comment
+  collaboratorId String
+  collaborator   BookCollaborator @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+
+  // Optional relationships (comment can be on page or chapter)
+  pageId    String?
+  page      Page?    @relation(fields: [pageId], references: [id])
+
+  chapterId String?
+  chapter   Chapter? @relation(fields: [chapterId], references: [id])
+
+  @@map("comments")
+}
+
+// ===== VERSION CONTROL =====
+model BookVersion {
+  id          String   @id @default(cuid())
+  version     String   // "1.0", "1.1", etc.
+  description String?
+  snapshot    Json     // Complete book data snapshot
+  createdAt   DateTime @default(now())
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("book_versions")
+}
+
+// ===== EXPORT & PUBLISHING =====
+model Export {
+  id        String     @id @default(cuid())
+  format    ExportFormat
+  fileName  String
+  fileUrl   String?
+  status    ExportStatus @default(PROCESSING)
+  settings  Json?      // Export-specific settings
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // User relationship
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Book relationship
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("exports")
+}
+
+// ===== ENUMS =====
+enum BookStatus {
+  DRAFT
+  IN_PROGRESS
+  FIRST_DRAFT_COMPLETE
+  EDITING
+  BETA_READING
+  FINAL_DRAFT
+  PUBLISHED
+}
+
+enum CharacterRole {
+  PROTAGONIST
+  ANTAGONIST
+  MAJOR
+  MINOR
+  CAMEO
+}
+
+enum PlotPointType {
+  HOOK
+  PLOT_TURN_1
+  PINCH_1
+  MIDPOINT
+  PINCH_2
+  PLOT_TURN_2
+  RESOLUTION
+}
+
+enum SceneStatus {
+  PLANNED
+  DRAFT
+  REVISED
+  COMPLETE
+}
+
+enum ResearchType {
+  NOTE
+  LINK
+  IMAGE
+  DOCUMENT
+  VIDEO
+}
+
+enum CollaboratorRole {
+  BETA_READER
+  EDITOR
+  CO_AUTHOR
+  VIEWER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum ExportFormat {
+  PDF
+  EPUB
+  DOCX
+  TXT
+  HTML
+}
+
+enum ExportStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+} 

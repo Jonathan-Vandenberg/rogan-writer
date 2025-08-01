@@ -1,0 +1,1 @@
+export { PlotStructureMatrix } from './plot-structure-matrix' 

@@ -1,0 +1,1 @@
+export { CharacterManagement } from './character-management' 
