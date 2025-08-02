@@ -37,6 +37,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
   const [subplots, setSubplots] = useState<string[]>(['main'])
   const [isLoading, setIsLoading] = useState(true)
   const [editingPoint, setEditingPoint] = useState<PlotPointWithSubplot | null>(null)
+  const [viewingPoint, setViewingPoint] = useState<PlotPointWithSubplot | null>(null)
   const [isAddSubplotOpen, setIsAddSubplotOpen] = useState(false)
   const [newSubplotName, setNewSubplotName] = useState('')
 
@@ -59,9 +60,29 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
         const data = await response.json()
         setPlotPoints(data)
         
-                 // Extract unique subplots
-         const uniqueSubplots = [...new Set(data.map((p: PlotPoint) => p.subplot || 'main'))] as string[]
-         setSubplots(uniqueSubplots.length > 0 ? uniqueSubplots : ['main'])
+                         // Extract unique subplots and sort by creation date
+        const subplotGroups = data.reduce((acc: Record<string, Date>, plotPoint: PlotPoint) => {
+          const subplot = plotPoint.subplot || 'main'
+          const createdAt = new Date(plotPoint.createdAt)
+          
+          if (!acc[subplot] || createdAt < acc[subplot]) {
+            acc[subplot] = createdAt
+          }
+          return acc
+        }, {})
+
+        // Sort subplots by earliest creation date, keeping 'main' first
+        const sortedSubplots = Object.entries(subplotGroups)
+          .sort(([subplotA, dateA], [subplotB, dateB]) => {
+            // Always keep 'main' first
+            if (subplotA === 'main') return -1
+            if (subplotB === 'main') return 1
+            // Sort others by creation date
+            return (dateA as Date).getTime() - (dateB as Date).getTime()
+          })
+          .map(([subplot]) => subplot)
+
+        setSubplots(sortedSubplots.length > 0 ? sortedSubplots : ['main'])
       }
     } catch (error) {
       console.error('Error fetching plot points:', error)
@@ -92,7 +113,8 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
       })
 
       if (response.ok) {
-        fetchPlotPoints()
+        const newPlotPoint = await response.json()
+        setPlotPoints(prev => [...prev, { ...newPlotPoint, subplot: newPlotPoint.subplot || 'main' }])
       }
     } catch (error) {
       console.error('Error creating plot point:', error)
@@ -111,9 +133,14 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
       })
 
       if (response.ok) {
+        const updatedPlotPoint = await response.json()
+        setPlotPoints(prev => prev.map(p => 
+          p.id === editingPoint.id 
+            ? { ...updatedPlotPoint, subplot: updatedPlotPoint.subplot || 'main' }
+            : p
+        ))
         setEditingPoint(null)
         setFormData({ title: '', description: '', completed: false })
-        fetchPlotPoints()
       }
     } catch (error) {
       console.error('Error updating plot point:', error)
@@ -129,7 +156,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
       })
 
       if (response.ok) {
-        fetchPlotPoints()
+        setPlotPoints(prev => prev.filter(p => p.id !== plotPoint.id))
       }
     } catch (error) {
       console.error('Error deleting plot point:', error)
@@ -138,17 +165,35 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
 
   const handleToggleComplete = async (plotPoint: PlotPointWithSubplot) => {
     try {
+      // Optimistically update the UI first
+      setPlotPoints(prev => prev.map(p => 
+        p.id === plotPoint.id 
+          ? { ...p, completed: !p.completed }
+          : p
+      ))
+
       const response = await fetch(`/api/books/${bookId}/plot-points/${plotPoint.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !plotPoint.completed })
       })
 
-      if (response.ok) {
-        fetchPlotPoints()
+      if (!response.ok) {
+        // Revert the optimistic update if the API call failed
+        setPlotPoints(prev => prev.map(p => 
+          p.id === plotPoint.id 
+            ? { ...p, completed: plotPoint.completed }
+            : p
+        ))
       }
     } catch (error) {
       console.error('Error toggling plot point:', error)
+      // Revert the optimistic update on error
+      setPlotPoints(prev => prev.map(p => 
+        p.id === plotPoint.id 
+          ? { ...p, completed: plotPoint.completed }
+          : p
+      ))
     }
   }
 
@@ -165,7 +210,6 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
     if (!newSubplotName.trim() || subplots.includes(newSubplotName.trim())) return
 
     const newSubplot = newSubplotName.trim()
-    setSubplots([...subplots, newSubplot])
     setNewSubplotName('')
     setIsAddSubplotOpen(false)
 
@@ -173,6 +217,9 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
     for (const plotType of PLOT_POINT_TYPES) {
       await handleCreatePlotPoint(newSubplot, plotType.type)
     }
+    
+    // Fetch plot points to re-sort subplots by creation date
+    fetchPlotPoints()
   }
 
   const removeSubplot = async (subplot: string) => {
@@ -225,7 +272,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Target className="h-8 w-8 text-blue-600" />
+            <Target className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             Plot Structure
           </h1>
           <div className="flex items-center gap-4">
@@ -336,6 +383,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
                     onEdit={startEditing}
                     onDelete={handleDeletePlotPoint}
                     onToggleComplete={handleToggleComplete}
+                    onView={setViewingPoint}
                     onCreate={() => handleCreatePlotPoint(subplot, plotType.type)}
                   />
                 )
@@ -399,6 +447,103 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* View Plot Point Dialog */}
+      <Dialog open={!!viewingPoint} onOpenChange={(open) => !open && setViewingPoint(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 pr-4">
+                <DialogTitle className="text-xl">{viewingPoint?.title}</DialogTitle>
+                <DialogDescription>
+                  {viewingPoint && PLOT_POINT_TYPES.find(p => p.type === viewingPoint.type)?.label} - {viewingPoint?.subplot === null ? 'Main Plot' : viewingPoint?.subplot}
+                </DialogDescription>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (viewingPoint) {
+                      startEditing(viewingPoint)
+                      setViewingPoint(null)
+                    }
+                  }}
+                >
+                  <Edit className="h-3 w-3 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (viewingPoint) {
+                      setViewingPoint(null)
+                      await handleDeletePlotPoint(viewingPoint)
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto min-h-0 py-4 pr-4 scrollbar-none">
+            <div className="space-y-6">
+              {/* Plot Point Type Info */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground">Plot Point Type</h4>
+                <div className="bg-muted/30 p-3 rounded">
+                  <div className="font-medium">{viewingPoint && PLOT_POINT_TYPES.find(p => p.type === viewingPoint.type)?.label}</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {viewingPoint && PLOT_POINT_TYPES.find(p => p.type === viewingPoint.type)?.description}
+                  </div>
+                </div>
+              </div>
+
+              {/* Subplot Info */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground">Subplot</h4>
+                <div className="text-sm font-medium">
+                  {viewingPoint?.subplot === null ? 'Main Plot' : viewingPoint?.subplot}
+                </div>
+              </div>
+
+              {/* Description */}
+              {viewingPoint?.description && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground">Description</h4>
+                  <div className="prose prose-sm max-w-none">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {viewingPoint.description}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Completion Status */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground">Status</h4>
+                <div className="flex items-center gap-2">
+                  {viewingPoint?.completed ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <span className="text-sm text-green-600 dark:text-green-400">Completed</span>
+                    </>
+                  ) : (
+                    <>
+                      <Circle className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Not completed</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -411,6 +556,7 @@ interface PlotPointCellProps {
   onEdit: (plotPoint: PlotPointWithSubplot) => void
   onDelete: (plotPoint: PlotPointWithSubplot) => void
   onToggleComplete: (plotPoint: PlotPointWithSubplot) => void
+  onView: (plotPoint: PlotPointWithSubplot) => void
   onCreate: () => void
 }
 
@@ -421,6 +567,7 @@ function PlotPointCell({
   onEdit, 
   onDelete, 
   onToggleComplete, 
+  onView, 
   onCreate 
 }: PlotPointCellProps) {
   if (!plotPoint) {
@@ -440,13 +587,16 @@ function PlotPointCell({
   }
 
   return (
-    <Card className={`h-32 hover:shadow-md transition-shadow cursor-pointer ${plotPoint.completed ? 'bg-green-50 dark:bg-green-900/10 border-green-200' : ''}`}>
-      <CardHeader className="p-2 pb-1">
+    <div 
+      className={`rounded-md bg-card border h-32 hover:shadow-md transition-shadow cursor-pointer ${plotPoint.completed ? 'bg-green-50 dark:bg-green-900/10 border-green-200' : ''}`}
+      onClick={() => onView(plotPoint)}
+    >
+      <div className="p-2 pb-1">
         <div className="flex items-start justify-between">
-          <CardTitle className="text-sm line-clamp-2 flex-1 mr-2">
+          <div className="text-sm line-clamp-2 flex-1 mr-2">
             {plotPoint.title}
-          </CardTitle>
-          <div className="flex gap-1 flex-shrink-0">
+          </div>
+          <div>
             <Button
               variant="ghost"
               size="sm"
@@ -457,7 +607,7 @@ function PlotPointCell({
               className="h-6 w-6 p-0"
             >
               {plotPoint.completed ? (
-                <CheckCircle className="h-3 w-3 text-green-600" />
+                <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
               ) : (
                 <Circle className="h-3 w-3" />
               )}
@@ -486,12 +636,12 @@ function PlotPointCell({
             </Button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="p-2 pt-0">
-        <p className="text-xs text-muted-foreground line-clamp-3">
+      </div>
+      <div className="p-2 pt-0">
+        <p className="text-xs text-muted-foreground line-clamp-4">
           {plotPoint.description || 'No description yet'}
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 } 

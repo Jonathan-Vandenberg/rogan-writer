@@ -21,10 +21,10 @@ const SCENE_STATUSES: {
   color: string
   description: string
 }[] = [
-  { status: 'PLANNED', label: 'Planned', icon: CheckCircle, color: 'bg-gray-100 text-gray-700 border-gray-200', description: 'Scene idea mapped out' },
-  { status: 'DRAFT', label: 'Draft', icon: CheckCircle, color: 'bg-yellow-100 text-yellow-700 border-yellow-200', description: 'First draft written' },
-  { status: 'REVISED', label: 'Revised', icon: CheckCircle, color: 'bg-blue-100 text-blue-700 border-blue-200', description: 'Undergoing revisions' },
-  { status: 'COMPLETE', label: 'Complete', icon: CheckCircle, color: 'bg-green-100 text-green-700 border-green-200', description: 'Scene finished' },
+  { status: 'PLANNED', label: 'Planned', icon: CheckCircle, color: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/50 dark:text-gray-300 dark:border-gray-700', description: 'Scene idea mapped out' },
+  { status: 'DRAFT', label: 'Draft', icon: CheckCircle, color: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800', description: 'First draft written' },
+  { status: 'REVISED', label: 'Revised', icon: CheckCircle, color: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800', description: 'Undergoing revisions' },
+  { status: 'COMPLETE', label: 'Complete', icon: CheckCircle, color: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800', description: 'Scene finished' },
 ]
 
 interface SceneCardWithChapter extends SceneCard {
@@ -234,7 +234,7 @@ export function SceneCardBoard({ bookId }: SceneCardBoardProps) {
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Bookmark className="h-8 w-8 text-orange-600" />
+            <Bookmark className="h-8 w-8 text-orange-600 dark:text-orange-400" />
             Scene Cards
           </h1>
           <div className="flex items-center gap-4">
@@ -426,17 +426,17 @@ function SceneCardItem({ card, onEdit, onDelete, onStatusChange }: SceneCardItem
           <div className="space-y-1">
             {card.purpose && (
               <div className="text-xs">
-                <span className="font-medium text-blue-600">Purpose:</span> {card.purpose}
+                <span className="font-medium text-blue-600 dark:text-blue-400">Purpose:</span> {card.purpose}
               </div>
             )}
             {card.conflict && (
               <div className="text-xs">
-                <span className="font-medium text-red-600">Conflict:</span> {card.conflict}
+                <span className="font-medium text-red-600 dark:text-red-400">Conflict:</span> {card.conflict}
               </div>
             )}
             {card.outcome && (
               <div className="text-xs">
-                <span className="font-medium text-green-600">Outcome:</span> {card.outcome}
+                <span className="font-medium text-green-600 dark:text-green-400">Outcome:</span> {card.outcome}
               </div>
             )}
           </div>

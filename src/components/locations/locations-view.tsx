@@ -216,25 +216,16 @@ export function LocationsView({ className }: LocationsViewProps) {
         {filteredLocations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredLocations.map((location) => (
-              <Card 
+              <div 
                 key={location.id} 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
+                className="bg-card rounded-lg border border-border py-3 cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => setViewingLocation(location)}
               >
-                <CardHeader className="pb-3">
+                <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        {location.imageUrl ? (
-                          <AvatarImage src={location.imageUrl} alt={location.name} />
-                        ) : (
-                          <AvatarFallback className="bg-green-500 text-white">
-                            {getLocationInitials(location.name)}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
                       <div>
-                        <CardTitle className="text-lg">{location.name}</CardTitle>
+                        <CardTitle className="text-lg line-clamp-2">{location.name}</CardTitle>
                         <CardDescription className="text-xs">
                           {location._count.timelineEvents > 0 && (
                             <Badge variant="outline" className="text-xs">
@@ -273,20 +264,12 @@ export function LocationsView({ className }: LocationsViewProps) {
                 </CardHeader>
                 <CardContent>
                   {location.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-3">
+                    <p className="text-sm text-muted-foreground line-clamp-4">
                       {location.description}
                     </p>
                   )}
-                  {location.geography && (
-                    <div className="mt-2">
-                      <Badge variant="secondary" className="text-xs">
-                        <MapPin className="h-3 w-3 mr-1" />
-                        Geography
-                      </Badge>
-                    </div>
-                  )}
                 </CardContent>
-              </Card>
+              </div>
             ))}
           </div>
         ) : (
@@ -421,31 +404,14 @@ export function LocationsView({ className }: LocationsViewProps) {
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
-              <Avatar className="h-8 w-8">
-                {viewingLocation?.imageUrl ? (
-                  <AvatarImage src={viewingLocation.imageUrl} alt={viewingLocation.name} />
-                ) : (
-                  <AvatarFallback className="bg-green-500 text-white">
-                    {viewingLocation ? getLocationInitials(viewingLocation.name) : 'L'}
-                  </AvatarFallback>
-                )}
-              </Avatar>
               {viewingLocation?.name}
             </DialogTitle>
-            <DialogDescription>
-              Location Details
-            </DialogDescription>
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             {viewingLocation && (
               <div className="space-y-6 py-4">
                 {/* Basic Info */}
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="font-medium text-sm text-muted-foreground mb-1">Name</h4>
-                    <p className="text-sm">{viewingLocation.name}</p>
-                  </div>
-                  
+                <div className="space-y-3">          
                   {viewingLocation.description && (
                     <div>
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Description</h4>

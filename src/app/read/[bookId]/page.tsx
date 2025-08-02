@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, BookOpen, Eye, EyeOff, Settings } from "lucide-react"
+import { ArrowLeft, BookOpen, Edit2, Eye, EyeOff, Settings } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
@@ -255,7 +255,6 @@ export default function ReadBookPage() {
           <Link href="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
             </Button>
           </Link>
           <h1 className="text-2xl font-bold">Loading...</h1>
@@ -271,7 +270,6 @@ export default function ReadBookPage() {
           <Link href="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
             </Button>
           </Link>
           <h1 className="text-2xl font-bold">Book not found</h1>
@@ -288,7 +286,6 @@ export default function ReadBookPage() {
           <Link href="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
             </Button>
           </Link>
           <div>
@@ -315,15 +312,15 @@ export default function ReadBookPage() {
           </Button>
           <Link href={`/write?book=${bookId}`}>
             <Button size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Edit Mode
+              <Edit2 className="h-4 w-4 mr-2" />
+              Write Mode
             </Button>
           </Link>
         </div>
       </div>
 
       {/* Reading Area */}
-      <Card className="bg-gray-50">
+      <Card className="">
         <CardContent className="p-8">
           {pages.length > 0 ? (
             <div className="flex justify-center">

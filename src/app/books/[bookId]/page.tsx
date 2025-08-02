@@ -132,7 +132,6 @@ export default function BookStatsPage() {
           <Link href="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
             </Button>
           </Link>
           <h1 className="text-2xl font-bold">Loading...</h1>
@@ -148,7 +147,6 @@ export default function BookStatsPage() {
           <Link href="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
             </Button>
           </Link>
           <h1 className="text-2xl font-bold">Book not found</h1>
@@ -165,18 +163,11 @@ export default function BookStatsPage() {
             <Link href="/">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
               </Button>
             </Link>
             <div>
               <h1 className="text-3xl font-bold">{book.title}</h1>
               <div className="flex items-center gap-2 mt-2">
-                <Badge 
-                  variant="secondary" 
-                  className={cn("text-white", getStatusColor(book.status))}
-                >
-                  {formatStatus(book.status)}
-                </Badge>
                 {book.genre && (
                   <Badge variant="outline">
                     {book.genre}

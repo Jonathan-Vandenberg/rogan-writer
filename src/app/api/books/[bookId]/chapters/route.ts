@@ -4,7 +4,7 @@ import { ChapterService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const chapters = await ChapterService.getChaptersByBookId(params.bookId)
+    const { bookId } = await params
+    const chapters = await ChapterService.getChaptersByBookId(bookId)
     
     return NextResponse.json(chapters)
   } catch (error) {
@@ -24,7 +25,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -33,12 +34,13 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { bookId } = await params
     const data = await request.json()
     
     const chapter = await ChapterService.createChapter({
       title: data.title,
       description: data.description,
-      bookId: params.bookId
+      bookId: bookId
     })
     
     return NextResponse.json(chapter, { status: 201 })

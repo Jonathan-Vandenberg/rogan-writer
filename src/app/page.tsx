@@ -276,23 +276,14 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Your Library</h2>
-              <p className="text-muted-foreground">
-                Click on any book to view details and stats
-              </p>
             </div>
-            <Link href="/books">
-              <Button variant="outline">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Manage Books
-              </Button>
-            </Link>
           </div>
 
           {books.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {books.map((book) => (
                 <Link key={book.id} href={`/books/${book.id}`}>
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow group">
+                  <div className="bg-card rounded-lg border border-border py-3 cursor-pointer hover:shadow-lg transition-shadow group">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="space-y-2 flex-1">
@@ -300,12 +291,6 @@ export default function DashboardPage() {
                             {book.title}
                           </CardTitle>
                           <div className="flex items-center gap-2">
-                            <Badge 
-                              variant="secondary" 
-                              className={cn("text-white text-xs", getStatusColor(book.status))}
-                            >
-                              {formatStatus(book.status)}
-                            </Badge>
                             {book.genre && (
                               <Badge variant="outline" className="text-xs">
                                 {book.genre}
@@ -316,25 +301,14 @@ export default function DashboardPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
-                      {book.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                          {book.description}
-                        </p>
-                      )}
                       <div className="space-y-2">
-                        {book.targetWords && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Target className="h-3 w-3" />
-                            <span>Target: {book.targetWords.toLocaleString()} words</span>
-                          </div>
-                        )}
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           <span>Updated {new Date(book.updatedAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </CardContent>
-                  </Card>
+                  </div>
                 </Link>
               ))}
             </div>

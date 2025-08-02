@@ -196,9 +196,9 @@ function SinglePage({
         {/* Page number */}
         {showPageNumber && (
           <div 
-            className="absolute text-gray-500 text-xs font-bold"
+            className="absolute text-gray-500 text-xs"
             style={{
-              fontSize: `${fontSize! * 0.9}px`,
+              // fontSize: `${fontSize! * 0.9}px`,
               fontFamily: fontFamily,
               bottom: `${marginBottomPx / 2}px`,
               right: '50%',

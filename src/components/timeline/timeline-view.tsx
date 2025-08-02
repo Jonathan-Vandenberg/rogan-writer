@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,7 @@ export function TimelineView({ bookId }: TimelineViewProps) {
   const [editingEvent, setEditingEvent] = useState<TimelineEventWithRelations | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [viewingEvent, setViewingEvent] = useState<TimelineEventWithRelations | null>(null)
+  const timelineRef = useRef<HTMLDivElement>(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -51,6 +52,20 @@ export function TimelineView({ bookId }: TimelineViewProps) {
     fetchCharacters()
     fetchLocations()
   }, [bookId])
+
+  // Handle clicks outside timeline to deselect
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (timelineRef.current && !timelineRef.current.contains(event.target as Node)) {
+        setSelectedEventId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const fetchTimelineEvents = async () => {
     try {
@@ -296,31 +311,6 @@ export function TimelineView({ bookId }: TimelineViewProps) {
             </Badge>
           </div>
         </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Event
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create New Timeline Event</DialogTitle>
-              <DialogDescription>
-                Add a new event to your story timeline
-              </DialogDescription>
-            </DialogHeader>
-            <TimelineEventForm
-              formData={formData}
-              setFormData={setFormData}
-              characters={characters}
-              locations={locations}
-              onSubmit={handleCreateEvent}
-              submitLabel="Create Event"
-            />
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Filters */}
@@ -362,11 +352,36 @@ export function TimelineView({ bookId }: TimelineViewProps) {
             ))}
           </SelectContent>
         </Select>
+
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={resetForm}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Event
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Create New Timeline Event</DialogTitle>
+              <DialogDescription>
+                Add a new event to your story timeline
+              </DialogDescription>
+            </DialogHeader>
+            <TimelineEventForm
+              formData={formData}
+              setFormData={setFormData}
+              characters={characters}
+              locations={locations}
+              onSubmit={handleCreateEvent}
+              submitLabel="Create Event"
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Timeline Roadmap */}
       {filteredEvents.length > 0 ? (
-        <Card>
+        <Card ref={timelineRef}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -378,7 +393,7 @@ export function TimelineView({ bookId }: TimelineViewProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-none">
               {/* Timeline Grid Container */}
               <div className="grid" style={{ 
                 gridTemplateColumns: `320px repeat(${timeColumns.length}, 96px)`,
@@ -464,7 +479,7 @@ export function TimelineView({ bookId }: TimelineViewProps) {
               Timeline Event Details
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-y-scroll min-h-0 py-4 pr-4 modal-scrollbar">
+          <div className="flex-1 overflow-y-auto min-h-0 py-4 pr-4 scrollbar-none">
             {viewingEvent && (
               <div className="space-y-6">
                 {/* Basic Info */}
@@ -530,31 +545,6 @@ export function TimelineView({ bookId }: TimelineViewProps) {
                     </div>
                   </div>
                 )}
-
-                {/* Timeline Position */}
-                <div className="space-y-3">
-                  <h4 className="font-medium text-sm text-muted-foreground">Timeline Position</h4>
-                  <div className="bg-muted/30 p-3 rounded">
-                    <div className="text-xs text-muted-foreground mb-2">
-                      Event spans from Time {viewingEvent.startTime} to Time {viewingEvent.endTime}
-                      {viewingEvent.startTime === viewingEvent.endTime ? ' (single time unit)' : ` (${viewingEvent.endTime - viewingEvent.startTime + 1} time units)`}
-                    </div>
-                    <div className="flex gap-1">
-                      {Array.from({ length: Math.max(viewingEvent.endTime, 10) }, (_, i) => i + 1).map((timeUnit) => (
-                        <div
-                          key={timeUnit}
-                          className={`w-6 h-4 border border-gray-300 text-xs flex items-center justify-center ${
-                            timeUnit >= viewingEvent.startTime && timeUnit <= viewingEvent.endTime
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-white'
-                          }`}
-                        >
-                          {timeUnit <= 10 ? timeUnit : ''}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -625,7 +615,7 @@ function TimelineRoadmapRow({ event, eventIndex, timeColumns, color, onEdit, onD
       {/* Event Info Cell */}
       <div 
         className={`p-3 border border-r-0 border-t-0 flex items-center cursor-pointer transition-colors group ${
-          isSelected ? 'bg-blue-100 hover:bg-blue-100' : 'hover:bg-muted/30'
+          isSelected ? 'bg-blue-100 hover:bg-blue-100 dark:bg-blue-900/50 dark:hover:bg-blue-900/50' : 'hover:bg-muted/30'
         }`}
         onClick={() => setSelectedEventId(isSelected ? null : event.id)}
       >
@@ -635,15 +625,6 @@ function TimelineRoadmapRow({ event, eventIndex, timeColumns, color, onEdit, onD
             <div className="flex items-center gap-2 mt-1">
               {event.character && (
                 <div className="flex items-center gap-1 text-xs">
-                  <Avatar className="h-4 w-4">
-                    {event.character.imageUrl ? (
-                      <AvatarImage src={event.character.imageUrl} alt={event.character.name} />
-                    ) : (
-                      <AvatarFallback className="text-xs">
-                        {getCharacterInitials(event.character.name)}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
                   <span className="text-blue-600">{event.character.name}</span>
                 </div>
               )}
@@ -694,7 +675,7 @@ function TimelineRoadmapRow({ event, eventIndex, timeColumns, color, onEdit, onD
           <div 
             key={timeUnit} 
             className={`border border-l-0 border-t-0 flex items-center justify-center cursor-pointer transition-colors ${
-              isSelected ? 'bg-blue-100 hover:bg-blue-100' : 'hover:bg-muted/30'
+              isSelected ? 'bg-blue-100 hover:bg-blue-100 dark:bg-blue-900/50 dark:hover:bg-blue-900/50' : 'hover:bg-muted/30'
             }`}
             onClick={() => setSelectedEventId(isSelected ? null : event.id)}
           >
@@ -753,7 +734,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Event Title */}
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="title">Event Title *</Label>
         <Input
           id="title"
@@ -765,7 +746,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
       </div>
 
       {/* Description */}
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
         <Textarea
           id="description"
@@ -777,7 +758,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
       </div>
 
       {/* Date in Story */}
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="eventDate">Date in Story</Label>
         <Input
           id="eventDate"
@@ -793,9 +774,9 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
 
       {/* Time Range */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Time Range *</Label>
+        <Label className="text-sm font-medium">Time Range</Label>
         <div className="grid grid-cols-2 gap-4">
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="startTime" className="text-sm">Start Time</Label>
             <Input
               id="startTime"
@@ -828,7 +809,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
             </p>
           </div>
           
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="endTime" className="text-sm">End Time</Label>
             <Input
               id="endTime"
@@ -868,7 +849,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
       <div className="space-y-3">
         <Label className="text-sm font-medium">Associations</Label>
         <div className="grid grid-cols-2 gap-4">
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="character" className="text-sm">Character</Label>
             <Select 
               value={formData.characterId} 
@@ -888,7 +869,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
             </Select>
           </div>
 
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="location" className="text-sm">Location</Label>
             <Select 
               value={formData.locationId} 

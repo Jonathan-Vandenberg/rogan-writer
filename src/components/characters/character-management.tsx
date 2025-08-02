@@ -22,11 +22,11 @@ const CHARACTER_ROLES: {
   color: string
   description: string
 }[] = [
-  { role: 'PROTAGONIST', label: 'Protagonist', icon: Crown, color: 'text-yellow-600 bg-yellow-100', description: 'Main hero of the story' },
-  { role: 'ANTAGONIST', label: 'Antagonist', icon: User, color: 'text-red-600 bg-red-100', description: 'Primary opposition' },
-  { role: 'MAJOR', label: 'Major', icon: Star, color: 'text-blue-600 bg-blue-100', description: 'Important supporting character' },
-  { role: 'MINOR', label: 'Minor', icon: User, color: 'text-gray-600 bg-gray-100', description: 'Secondary character' },
-  { role: 'CAMEO', label: 'Cameo', icon: Eye, color: 'text-purple-600 bg-purple-100', description: 'Brief appearance' },
+  { role: 'PROTAGONIST', label: 'Protagonist', icon: Crown, color: 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30', description: 'Main hero of the story' },
+  { role: 'ANTAGONIST', label: 'Antagonist', icon: User, color: 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30', description: 'Primary opposition' },
+  { role: 'MAJOR', label: 'Major', icon: Star, color: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30', description: 'Important supporting character' },
+  { role: 'MINOR', label: 'Minor', icon: User, color: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50', description: 'Secondary character' },
+  { role: 'CAMEO', label: 'Cameo', icon: Eye, color: 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30', description: 'Brief appearance' },
 ]
 
 interface CharacterWithStats extends Character {
@@ -239,7 +239,7 @@ export function CharacterManagement({ bookId }: CharacterManagementProps) {
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Users className="h-8 w-8 text-purple-600" />
+            <Users className="h-8 w-8 text-purple-600 dark:text-purple-400" />
             Characters
           </h1>
           <div className="flex items-center gap-4">
@@ -418,15 +418,6 @@ function CharacterCard({ character, onEdit, onDelete }: CharacterCardProps) {
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12">
-              {character.imageUrl ? (
-                <AvatarImage src={character.imageUrl} alt={character.name} />
-              ) : (
-                <AvatarFallback className={roleConfig.color}>
-                  {getCharacterInitials(character.name)}
-                </AvatarFallback>
-              )}
-            </Avatar>
             <div>
               <CardTitle className="text-lg">{character.name}</CardTitle>
               <Badge variant="secondary" className={`${roleConfig.color} text-xs`}>
@@ -575,16 +566,6 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
           onChange={(e) => setFormData(prev => ({ ...prev, backstory: e.target.value }))}
           placeholder="Character's history and background..."
           rows={3}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="imageUrl">Image URL (optional)</Label>
-        <Input
-          id="imageUrl"
-          value={formData.imageUrl}
-          onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-          placeholder="https://example.com/character-image.jpg"
         />
       </div>
 

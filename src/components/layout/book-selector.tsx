@@ -36,7 +36,8 @@ export function BookSelector() {
       if (response.ok) {
         const booksData = await response.json()
         setBooks(booksData)
-        if (booksData.length > 0 && !selectedBookId) {
+        // Only default to first book if there's no saved selection and no current selection
+        if (booksData.length > 0 && !selectedBookId && !localStorage.getItem('selectedBookId')) {
           setSelectedBookId(booksData[0].id)
         }
       }
