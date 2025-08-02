@@ -60,9 +60,29 @@ export class BookService {
     fontFamily?: string
     lineHeight?: number
   }): Promise<Book> {
-    return await prisma.book.create({
-      data
+    // Create the book and its first chapter in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the book
+      const book = await tx.book.create({
+        data
+      })
+
+      // Create the first chapter
+      await tx.chapter.create({
+        data: {
+          title: "Chapter 1",
+          description: "The beginning of your story",
+          content: "",
+          orderIndex: 0,
+          bookId: book.id,
+          wordCount: 0
+        }
+      })
+
+      return book
     })
+
+    return result
   }
 
   static async updateBook(id: string, data: Partial<Book>): Promise<Book> {

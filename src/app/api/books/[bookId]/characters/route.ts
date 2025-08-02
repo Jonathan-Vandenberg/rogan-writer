@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const characters = await CharacterService.getCharactersByBookId(params.bookId)
+    const { bookId } = await params
+    const characters = await CharacterService.getCharactersByBookId(bookId)
     
     return NextResponse.json(characters)
   } catch (error) {

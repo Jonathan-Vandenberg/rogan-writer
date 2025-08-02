@@ -15,6 +15,7 @@ interface BookPageProps {
   fontFamily?: string
   lineHeight?: number
   marginTop?: number
+  marginBottom?: number
   marginLeft?: number
   marginRight?: number
   wordsPerLine?: number
@@ -51,6 +52,7 @@ function SinglePage({
   fontFamily,
   lineHeight,
   marginTop,
+  marginBottom,
   marginLeft,
   marginRight,
   isEditable,
@@ -75,7 +77,7 @@ function SinglePage({
   const pageWidthPx = pageWidth! * DPI
   const pageHeightPx = pageHeight! * DPI
   const marginTopPx = marginTop! * DPI
-  const marginBottomPx = 0 * DPI // Hardcoded bottom margin
+  const marginBottomPx = marginBottom! * DPI
   const marginLeftPx = marginLeft! * DPI
   const marginRightPx = marginRight! * DPI
 
@@ -91,13 +93,11 @@ function SinglePage({
 
   const textAreaStyle: React.CSSProperties = {
     width: `${pageWidthPx - marginLeftPx - marginRightPx}px`,
-    height: `${pageHeightPx - marginTopPx - marginBottomPx - (showPageNumber ? 30 : 0)}px`,
     fontSize: `${fontSize}px`,
     fontFamily: fontFamily,
     lineHeight: lineHeight,
     marginLeft: `${marginLeftPx}px`,
     marginRight: `${marginRightPx}px`,
-    marginBottom: `${marginBottomPx}px`,
     border: 'none',
     outline: 'none',
     resize: 'none',
@@ -151,16 +151,17 @@ function SinglePage({
       {/* Chapter title (only on first page of chapter) */}
       {showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim() && (
         <div 
-          className="absolute top-0 left-0 right-0 p-4 z-5"
+          className="absolute top-0 left-0 right-0 z-5"
           style={{
             fontFamily: chapterTitleFontFamily || fontFamily,
-            fontSize: `${chapterTitleFontSize || fontSize! * 1.5}px`,
+            fontSize: `${chapterTitleFontSize || 26}px`,
             textAlign: chapterTitleAlignment || 'center',
             fontWeight: 'bold',
             color: '#2d3748',
             marginTop: `${marginTopPx}px`,
             marginLeft: `${marginLeftPx}px`,
             marginRight: `${marginRightPx}px`,
+            paddingBottom: `${chapterTitlePadding || 65}px`,
           }}
         >
           {chapterTitle}
@@ -183,22 +184,23 @@ function SinglePage({
         style={{
           ...textAreaStyle,
           top: showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim() 
-            ? `${marginTopPx + (chapterTitleFontSize || fontSize! * 1.5) + (chapterTitlePadding || 20)}px` 
-            : `${marginTopPx}px`, // Use only the margin when no chapter title
+            ? `${marginTopPx + (chapterTitleFontSize || 26) + (chapterTitlePadding || 65)}px` 
+            : `${marginTopPx}px`,
           height: showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim()
-            ? `${pageHeightPx - marginTopPx - marginBottomPx - (chapterTitleFontSize || fontSize! * 1.5) - (chapterTitlePadding || 20) - (showPageNumber ? (marginBottomPx === 0 ? 20 : 30) : 0)}px`
-            : `${pageHeightPx - marginTopPx - marginBottomPx - (showPageNumber ? (marginBottomPx === 0 ? 20 : 30) : 0)}px` // Minimal space for page number when margin is 0
-          }}
-          readOnly={!isEditable}
-        />
+            ? `${pageHeightPx - marginTopPx - marginBottomPx - (chapterTitleFontSize || 26) - (chapterTitlePadding || 65)}px`
+            : `${pageHeightPx - marginTopPx - marginBottomPx}px`
+        }}
+        readOnly={!isEditable}
+      />
 
         {/* Page number */}
         {showPageNumber && (
           <div 
-            className="absolute bottom-6 text-gray-500 text-xs font-bold"
+            className="absolute text-gray-500 text-xs font-bold"
             style={{
               fontSize: `${fontSize! * 0.9}px`,
               fontFamily: fontFamily,
+              bottom: `${marginBottomPx / 2}px`,
               right: '50%',
               transform: 'translateX(50%)'
             }}
@@ -219,6 +221,7 @@ function SinglePage({
     fontFamily = "Verdana",
     lineHeight = 1.5,
     marginTop = 1,
+    marginBottom = 1,
     marginLeft = 0.6,
     marginRight = 0.7,
     isEditable = true,
@@ -252,6 +255,7 @@ function SinglePage({
         fontFamily={fontFamily}
         lineHeight={lineHeight}
         marginTop={marginTop}
+        marginBottom={marginBottom}
         marginLeft={marginLeft}
         marginRight={marginRight}
         isEditable={isEditable}

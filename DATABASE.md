@@ -61,7 +61,7 @@ This application uses PostgreSQL with the pgvector extension for vector operatio
 
 ### Analytics & Export
 - **WritingSessions**: Track writing progress and goals
-- **Exports**: Multiple format support (PDF, EPUB, DOCX, TXT, HTML)
+- **Exports**: Multiple format support (PDF, TXT, HTML)
 
 ## Vector Database Capabilities
 

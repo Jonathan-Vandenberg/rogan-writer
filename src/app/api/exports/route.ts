@@ -7,14 +7,17 @@ export async function GET(request: Request) {
     const session = await auth()
     
     if (!session?.user?.id) {
+      console.log('Unauthorized request for export stats')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const exports = await ExportService.getExportsByUserId(session.user.id)
+    console.log('Fetching export stats for user:', session.user.id)
+    const exportStats = await ExportService.getExportStats(session.user.id)
+    console.log('Export stats retrieved:', exportStats)
     
-    return NextResponse.json(exports)
+    return NextResponse.json(exportStats)
   } catch (error) {
-    console.error('Error fetching exports:', error)
+    console.error('Error fetching export stats:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

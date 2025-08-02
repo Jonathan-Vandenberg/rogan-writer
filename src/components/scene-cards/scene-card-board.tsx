@@ -21,9 +21,9 @@ const SCENE_STATUSES: {
   color: string
   description: string
 }[] = [
-  { status: 'PLANNED', label: 'Planned', icon: Clock, color: 'bg-gray-100 text-gray-700 border-gray-200', description: 'Scene idea mapped out' },
-  { status: 'DRAFT', label: 'Draft', icon: Edit, color: 'bg-yellow-100 text-yellow-700 border-yellow-200', description: 'First draft written' },
-  { status: 'REVISED', label: 'Revised', icon: AlertCircle, color: 'bg-blue-100 text-blue-700 border-blue-200', description: 'Undergoing revisions' },
+  { status: 'PLANNED', label: 'Planned', icon: CheckCircle, color: 'bg-gray-100 text-gray-700 border-gray-200', description: 'Scene idea mapped out' },
+  { status: 'DRAFT', label: 'Draft', icon: CheckCircle, color: 'bg-yellow-100 text-yellow-700 border-yellow-200', description: 'First draft written' },
+  { status: 'REVISED', label: 'Revised', icon: CheckCircle, color: 'bg-blue-100 text-blue-700 border-blue-200', description: 'Undergoing revisions' },
   { status: 'COMPLETE', label: 'Complete', icon: CheckCircle, color: 'bg-green-100 text-green-700 border-green-200', description: 'Scene finished' },
 ]
 

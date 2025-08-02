@@ -14,8 +14,6 @@ import { MicrophoneButton } from "@/components/writing/microphone-button"
 import { SpeechToTextProvider } from "@/hooks/use-speech-to-text"
 import { 
   Save, 
-  Eye, 
-  EyeOff, 
   Maximize2, 
   Minimize2,
   FileText,
@@ -146,7 +144,6 @@ export default function WritePage() {
   }, [book?.id])
 
   // Writing state - ALL useState hooks together
-  const [isDistrationFree, setIsDistrationFree] = React.useState(false)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null)
   const [isSaving, setIsSaving] = React.useState(false)
@@ -481,17 +478,9 @@ export default function WritePage() {
     }
   }
 
-  // Toggle distraction-free mode
-  const toggleDistractionFree = () => {
-    setIsDistrationFree(!isDistrationFree)
-  }
-
   // Toggle fullscreen
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen)
-    if (!isFullscreen) {
-      setIsDistrationFree(true)
-    }
   }
 
   // Cleanup timeouts on unmount
@@ -551,123 +540,82 @@ export default function WritePage() {
       isFullscreen && "fixed inset-0 z-50 bg-white dark:bg-gray-900 overflow-auto"
     )}>
       {/* Header */}
-      {!isDistrationFree && (
-        <div className="border-b bg-white dark:bg-gray-800 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-xl font-semibold">Writing Mode</h1>
-                <p className="text-sm text-muted-foreground">
-                  {book.title} - {chapterTitle}
-                </p>
-              </div>
-              
-              {/* Writing Stats */}
-              <div className="flex items-center gap-4">
-                <Badge variant="secondary" className="gap-1">
-                  <FileText className="h-3 w-3" />
-                  {wordCount} words
-                </Badge>
-                <Badge variant="secondary" className="gap-1">
-                  <Target className="h-3 w-3" />
-                  Page {currentPageIndex}
-                </Badge>
-                {/* {pageCapacityWarning && (
-                  <Badge 
-                    variant={pageCapacityWarning === 'danger' ? 'destructive' : 'outline'} 
-                    className="gap-1"
-                  >
-                    <AlertCircle className="h-3 w-3" />
-                    {pageCapacityWarning === 'danger' ? 'Page Full' : 'Page Nearly Full'}
-                  </Badge>
-                )} */}
-                {lastSaved && (
-                  <Badge variant="outline" className="gap-1">
-                    <Clock className="h-3 w-3" />
-                    Saved {lastSaved.toLocaleTimeString()}
-                  </Badge>
-                )}
-                {isSaving && (
-                  <Badge variant="outline" className="gap-1">
-                    <Clock className="h-3 w-3 animate-spin" />
-                    Saving...
-                  </Badge>
-                )}
-                {isAutoNavigating && (
-                  <Badge variant="outline" className="gap-1">
-                    <Target className="h-3 w-3 animate-pulse" />
-                    Moving to next page...
-                  </Badge>
-                )}
-              </div>
+      <div className="border-b bg-white dark:bg-gray-800 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-xl font-semibold">Writing Mode</h1>
+              <p className="text-sm text-muted-foreground">
+                {book.title} - {chapterTitle}
+              </p>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2">
-              {typographySettings.speechToTextEnabled && (
-                <MicrophoneButton
-                  provider={typographySettings.speechToTextProvider}
-                  language={typographySettings.speechToTextLanguage}
-                  autoInsert={typographySettings.speechToTextAutoInsert}
-                  isTextareaFocused={isTextareaFocused}
-                  onTextReceived={handleSpeechToTextInsertion}
-                  size="sm"
-                  variant="outline"
-                />
+            
+            {/* Writing Stats */}
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="gap-1">
+                <FileText className="h-3 w-3" />
+                {wordCount} words
+              </Badge>
+              <Badge variant="secondary" className="gap-1">
+                <Target className="h-3 w-3" />
+                Page {currentPageIndex}
+              </Badge>
+              {lastSaved && (
+                <Badge variant="outline" className="gap-1">
+                  <Clock className="h-3 w-3" />
+                  Saved {lastSaved.toLocaleTimeString()}
+                </Badge>
               )}
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="gap-1"
-              >
-                <Save className="h-4 w-4" />
-                Save
-              </Button>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleDistractionFree}
-                className="gap-1"
-              >
-                {isDistrationFree ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                Focus
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleFullscreen}
-                className="gap-1"
-              >
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                {isFullscreen ? "Exit" : "Fullscreen"}
-              </Button>
+              {isSaving && (
+                <Badge variant="outline" className="gap-1">
+                  <Clock className="h-3 w-3 animate-spin" />
+                  Saving...
+                </Badge>
+              )}
+              {isAutoNavigating && (
+                <Badge variant="outline" className="gap-1">
+                  <Target className="h-3 w-3 animate-pulse" />
+                  Moving to next page...
+                </Badge>
+              )}
             </div>
           </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {typographySettings.speechToTextEnabled && (
+              <MicrophoneButton
+                provider={typographySettings.speechToTextProvider}
+                language={typographySettings.speechToTextLanguage}
+                autoInsert={typographySettings.speechToTextAutoInsert}
+                isTextareaFocused={isTextareaFocused}
+                onTextReceived={handleSpeechToTextInsertion}
+                size="sm"
+                variant="outline"
+              />
+            )}
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleFullscreen}
+              className="gap-1"
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              {isFullscreen ? "Exit" : "Focus"}
+            </Button>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Main Content */}
       <div className={cn(
         "flex gap-6 p-6",
-        isDistrationFree && "justify-center items-center min-h-screen p-12"
+        isFullscreen && "justify-center items-center min-h-screen p-12"
       )}>
         {/* Sidebar Controls */}
-        {!isDistrationFree && (
+        {!isFullscreen && (
           <div className="w-88 space-y-6">
-            {/* Typography Controls */}
-            <TypographyControls
-              settings={typographySettings}
-              onSettingsChange={(newSettings) => {
-                setTypographySettings(newSettings)
-                saveTypographySettings(newSettings)
-              }}
-            />
-
             {/* Page Navigation */}
             <PageNavigation
               currentPage={currentPageIndex}
@@ -680,6 +628,15 @@ export default function WritePage() {
               onChapterTitleChange={handleChapterTitleChange}
               onNewPage={handleNewPage}
               onNewChapter={handleNewChapter}
+            />
+
+            {/* Typography Controls */}
+            <TypographyControls
+              settings={typographySettings}
+              onSettingsChange={(newSettings) => {
+                setTypographySettings(newSettings)
+                saveTypographySettings(newSettings)
+              }}
             />
 
             {/* Quick Stats */}
@@ -699,11 +656,6 @@ export default function WritePage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Pages:</span>
                   <span className="font-medium">{totalPages}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Status:</span>
-                  <span className="font-medium capitalize">{book.status.replace('_', ' ')}</span>
                 </div>
               </CardContent>
             </Card>
@@ -741,43 +693,13 @@ export default function WritePage() {
             onCursorPositionChange={handleCursorPositionChange}
             className={cn(
               "transition-all duration-300",
-              isDistrationFree && "scale-110"
+              isFullscreen && "scale-110"
             )}
           />
 
-          {/* Distraction-free mode controls */}
-          {isDistrationFree && (
-            <div className="mt-8 flex items-center gap-4">
-              <Button
-                variant="outline"
-                onClick={toggleDistractionFree}
-                className="gap-1"
-              >
-                <Eye className="h-4 w-4" />
-                Show Tools
-              </Button>
-              
-              <div className="flex items-center gap-2">
-                <div className="text-sm text-muted-foreground">
-                  Page {currentPageIndex} • {wordCount} words
-                </div>
-                {pageCapacityWarning && (
-                  <Badge 
-                    variant={pageCapacityWarning === 'danger' ? 'destructive' : 'outline'} 
-                    className="gap-1 text-xs"
-                  >
-                    <AlertCircle className="h-3 w-3" />
-                    {pageCapacityWarning === 'danger' ? 'Page Full' : 'Nearly Full'}
-                  </Badge>
-                )}
-                {isAutoNavigating && (
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Target className="h-3 w-3 animate-pulse" />
-                    Moving to next page...
-                  </Badge>
-                )}
-              </div>
-
+          {/* Fullscreen mode controls */}
+          {isFullscreen && (
+            <div className="mt-20 flex items-center gap-4">
               {typographySettings.speechToTextEnabled && (
                 <MicrophoneButton
                   provider={typographySettings.speechToTextProvider}
@@ -788,16 +710,6 @@ export default function WritePage() {
                   variant="outline"
                 />
               )}
-              
-              <Button
-                variant="outline"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="gap-1"
-              >
-                <Save className="h-4 w-4" />
-                {isSaving ? "Saving..." : "Save"}
-              </Button>
             </div>
           )}
         </div>

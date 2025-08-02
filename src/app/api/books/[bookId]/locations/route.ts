@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const locations = await LocationService.getLocationsByBookId(params.bookId)
+    const { bookId } = await params
+    const locations = await LocationService.getLocationsByBookId(bookId)
     
     return NextResponse.json(locations)
   } catch (error) {
@@ -34,6 +35,7 @@ export async function POST(
     }
 
     const data = await request.json()
+    const { bookId } = await params
     
     const location = await LocationService.createLocation({
       name: data.name,
@@ -42,7 +44,7 @@ export async function POST(
       culture: data.culture,
       rules: data.rules,
       imageUrl: data.imageUrl,
-      bookId: params.bookId
+      bookId: bookId
     })
     
     return NextResponse.json(location, { status: 201 })

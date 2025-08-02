@@ -40,8 +40,8 @@ export function TimelineView({ bookId }: TimelineViewProps) {
     title: '',
     description: '',
     eventDate: '',
-    startTime: 1,
-    endTime: 1,
+    startTime: 1, // Allow 0 for temporary empty state
+    endTime: 1,   // Allow 0 for temporary empty state
     characterId: 'none',
     locationId: 'none'
   })
@@ -95,12 +95,18 @@ export function TimelineView({ bookId }: TimelineViewProps) {
     e.preventDefault()
     if (!formData.title.trim()) return
 
+    // Validate time values
+    const startTime = Math.max(1, formData.startTime || 1)
+    const endTime = Math.max(startTime, formData.endTime || 1)
+
     try {
       const response = await fetch(`/api/books/${bookId}/timeline-events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          startTime,
+          endTime,
           characterId: formData.characterId === 'none' ? null : formData.characterId,
           locationId: formData.locationId === 'none' ? null : formData.locationId
         })
@@ -120,12 +126,18 @@ export function TimelineView({ bookId }: TimelineViewProps) {
     e.preventDefault()
     if (!editingEvent || !formData.title.trim()) return
 
+    // Validate time values
+    const startTime = Math.max(1, formData.startTime || 1)
+    const endTime = Math.max(startTime, formData.endTime || 1)
+
     try {
       const response = await fetch(`/api/books/${bookId}/timeline-events/${editingEvent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          startTime,
+          endTime,
           characterId: formData.characterId === 'none' ? null : formData.characterId,
           locationId: formData.locationId === 'none' ? null : formData.locationId
         })
@@ -739,7 +751,8 @@ interface TimelineEventFormProps {
 
 function TimelineEventForm({ formData, setFormData, characters, locations, onSubmit, submitLabel }: TimelineEventFormProps) {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-6">
+      {/* Event Title */}
       <div>
         <Label htmlFor="title">Event Title *</Label>
         <Input
@@ -751,6 +764,7 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
         />
       </div>
 
+      {/* Description */}
       <div>
         <Label htmlFor="description">Description</Label>
         <Textarea
@@ -758,99 +772,141 @@ function TimelineEventForm({ formData, setFormData, characters, locations, onSub
           value={formData.description}
           onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
           placeholder="Detailed description of the event..."
-          rows={3}
+          rows={2}
         />
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
-        <div>
-          <Label htmlFor="eventDate">Date in Story</Label>
-          <Input
-            id="eventDate"
-            value={formData.eventDate}
-            onChange={(e) => setFormData(prev => ({ ...prev, eventDate: e.target.value }))}
-            placeholder="e.g., May 8, Day 3, Chapter 2..."
-            className="font-mono"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            When this happens in your story
-          </p>
-        </div>
-        
-        <div>
-          <Label htmlFor="startTime">Start Time *</Label>
-          <Input
-            id="startTime"
-            type="number"
-            value={formData.startTime}
-            onChange={(e) => setFormData(prev => ({ ...prev, startTime: parseInt(e.target.value) || 1 }))}
-            min="1"
-            required
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            When event begins
-          </p>
-        </div>
-        
-        <div>
-          <Label htmlFor="endTime">End Time *</Label>
-          <Input
-            id="endTime"
-            type="number"
-            value={formData.endTime}
-            onChange={(e) => {
-              const endTime = parseInt(e.target.value) || 1
-              setFormData(prev => ({ 
-                ...prev, 
-                endTime: Math.max(endTime, prev.startTime) // Ensure end >= start
-              }))
-            }}
-            min={formData.startTime}
-            required
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            When event ends
-          </p>
-        </div>
-        
-        <div>
-          <Label htmlFor="character">Character</Label>
-          <Select 
-            value={formData.characterId} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, characterId: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select character" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No character</SelectItem>
-              {characters.map((character) => (
-                <SelectItem key={character.id} value={character.id}>
-                  {character.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Date in Story */}
+      <div>
+        <Label htmlFor="eventDate">Date in Story</Label>
+        <Input
+          id="eventDate"
+          value={formData.eventDate}
+          onChange={(e) => setFormData(prev => ({ ...prev, eventDate: e.target.value }))}
+          placeholder="e.g., May 8, Day 3, Chapter 2..."
+          className="font-mono"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          When this happens in your story
+        </p>
+      </div>
 
-        <div>
-          <Label htmlFor="location">Location</Label>
-          <Select 
-            value={formData.locationId} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, locationId: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select location" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No location</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location.id} value={location.id}>
-                  {location.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Time Range */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium">Time Range *</Label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="startTime" className="text-sm">Start Time</Label>
+            <Input
+              id="startTime"
+              type="number"
+              value={formData.startTime === 0 ? '' : formData.startTime}
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === '') {
+                  setFormData(prev => ({ ...prev, startTime: 0 }))
+                } else {
+                  const startTime = Math.max(1, parseInt(value) || 1)
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    startTime,
+                    endTime: Math.max(startTime, prev.endTime) // Ensure end >= start
+                  }))
+                }
+              }}
+              onBlur={(e) => {
+                // Ensure we have a valid value when user leaves the field
+                if (formData.startTime === 0) {
+                  setFormData(prev => ({ ...prev, startTime: 1 }))
+                }
+              }}
+              min="1"
+              required
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              When event begins
+            </p>
+          </div>
+          
+          <div>
+            <Label htmlFor="endTime" className="text-sm">End Time</Label>
+            <Input
+              id="endTime"
+              type="number"
+              value={formData.endTime === 0 ? '' : formData.endTime}
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === '') {
+                  setFormData(prev => ({ ...prev, endTime: 0 }))
+                } else {
+                  const endTime = Math.max(1, parseInt(value) || 1)
+                  const minEndTime = Math.max(1, formData.startTime)
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    endTime: Math.max(endTime, minEndTime) // Ensure end >= start
+                  }))
+                }
+              }}
+              onBlur={(e) => {
+                // Ensure we have a valid value when user leaves the field
+                if (formData.endTime === 0) {
+                  const minEndTime = Math.max(1, formData.startTime)
+                  setFormData(prev => ({ ...prev, endTime: minEndTime }))
+                }
+              }}
+              min={formData.startTime || 1}
+              required
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              When event ends
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Associations */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium">Associations</Label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="character" className="text-sm">Character</Label>
+            <Select 
+              value={formData.characterId} 
+              onValueChange={(value) => setFormData(prev => ({ ...prev, characterId: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select character" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No character</SelectItem>
+                {characters.map((character) => (
+                  <SelectItem key={character.id} value={character.id}>
+                    {character.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="location" className="text-sm">Location</Label>
+            <Select 
+              value={formData.locationId} 
+              onValueChange={(value) => setFormData(prev => ({ ...prev, locationId: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No location</SelectItem>
+                {locations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

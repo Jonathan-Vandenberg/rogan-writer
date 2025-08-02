@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const timelineEvents = await TimelineEventService.getTimelineEventsByBookId(params.bookId)
+    const { bookId } = await params
+    const timelineEvents = await TimelineEventService.getTimelineEventsByBookId(bookId)
     
     return NextResponse.json(timelineEvents)
   } catch (error) {

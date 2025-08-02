@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const book = await BookService.getBookById(params.bookId)
+    const { bookId } = await params
+    const book = await BookService.getBookById(bookId)
     
     if (!book) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 })

@@ -17,6 +17,7 @@ import {
   Target,
   Bookmark,
   Download,
+  Palette,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { MoodOverlay } from "@/components/ui/mood-overlay"
 
 const navigationItems = [
   {
@@ -42,8 +44,6 @@ const navigationItems = [
     items: [
       { title: "Dashboard", url: "/", icon: Home },
       { title: "Write", url: "/write", icon: PenTool },
-      { title: "Chapters", url: "/chapters", icon: BookOpen },
-      { title: "Pages", url: "/pages", icon: FileText },
     ],
   },
   {
@@ -55,13 +55,6 @@ const navigationItems = [
       { title: "Locations", url: "/locations", icon: Map },
       { title: "Timeline", url: "/timeline", icon: Calendar },
       { title: "Scene Cards", url: "/scenes", icon: Bookmark },
-    ],
-  },
-  {
-    title: "Research",
-    items: [
-      { title: "Research", url: "/research", icon: FileText },
-      { title: "Analytics", url: "/analytics", icon: BarChart3 },
     ],
   },
   {
@@ -118,7 +111,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       
       <SidebarFooter>
         <div className="flex items-center justify-between px-2 py-1">
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <MoodOverlay />
+          </div>
           <Button variant="ghost" size="sm" asChild>
             <Link href="/settings">
               <Settings className="h-4 w-4" />

@@ -184,12 +184,12 @@
 ## 📤 **Phase 7: Export & Publishing**
 
 ### Export System
-- [ ] Create export format selection interface
-- [ ] Implement PDF export with proper formatting
-- [ ] Add EPUB generation for e-books
-- [ ] Create DOCX export for submissions
-- [ ] Implement HTML export for web
-- [ ] Add custom format templates
+- [x] Basic export to PDF (working)
+- [ ] Export to TXT (working) 
+- [ ] Export to HTML (for web viewing)
+- [ ] Add export settings (margins, fonts, etc.)
+- [ ] Cover page generation
+- [ ] Print-ready formatting
 
 ### Publishing Integration
 - [ ] Create manuscript formatting templates

@@ -164,10 +164,8 @@ export class ExportService {
       prisma.export.count({ where: { userId, status: 'FAILED' } })
     ])
 
-    const [pdf, epub, docx, txt, html] = await Promise.all([
+    const [pdf, txt, html] = await Promise.all([
       prisma.export.count({ where: { userId, format: 'PDF' } }),
-      prisma.export.count({ where: { userId, format: 'EPUB' } }),
-      prisma.export.count({ where: { userId, format: 'DOCX' } }),
       prisma.export.count({ where: { userId, format: 'TXT' } }),
       prisma.export.count({ where: { userId, format: 'HTML' } })
     ])
@@ -192,8 +190,6 @@ export class ExportService {
       },
       byFormat: {
         pdf,
-        epub,
-        docx,
         txt,
         html
       },

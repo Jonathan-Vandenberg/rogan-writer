@@ -193,7 +193,7 @@ export function PageNavigation({
                 className="flex items-center gap-2 group cursor-pointer"
                 onClick={handleTitleEdit}
               >
-                <span className="text-sm text-muted-foreground truncate flex-1">
+                <span className="text-lg font-bold text-center truncate flex-1">
                   {chapterTitle}
                 </span>
                 {onChapterTitleChange && (
@@ -242,16 +242,6 @@ export function PageNavigation({
               className="h-7 w-7 p-0"
             >
               <ChevronRight className="h-3 w-3" />
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onNewPage}
-              className="h-7 px-2"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              New
             </Button>
           </div>
         </div>
