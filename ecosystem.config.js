@@ -4,7 +4,7 @@ module.exports = {
       name: 'rogan-writer',
       script: 'npm',
       args: 'start',
-      cwd: '/var/www/rogan-writer',
+      cwd: '/var/www/rogan-writer/current',
       instances: 1,
       autorestart: true,
       watch: false,
@@ -13,10 +13,13 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000
       },
-      error_file: './logs/err.log',
-      out_file: './logs/out.log',
-      log_file: './logs/combined.log',
-      time: true
+      error_file: '/var/www/rogan-writer/logs/err.log',
+      out_file: '/var/www/rogan-writer/logs/out.log',
+      log_file: '/var/www/rogan-writer/logs/combined.log',
+      time: true,
+      // Ensure we're using Node.js 18
+      interpreter: 'node',
+      node_args: '--max-old-space-size=1024'
     }
   ]
 }; 
