@@ -28,18 +28,21 @@ jobs:
 
     - name: Set up environment files
       run: |
-        # Create production .env file directly from secrets
-        echo "NODE_ENV=production" > .env
-        echo "PORT=3000" >> .env
-        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
-        echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
-        echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
-        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
-        echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
-        echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
+        # Create production .env.local file directly from secrets (Next.js convention)
+        echo "NODE_ENV=production" > .env.local
+        echo "PORT=3000" >> .env.local
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env.local
+        echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env.local
+        echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env.local
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env.local
+        echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env.local
+        echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env.local
         
-        # Copy for build process
-        cp .env .env.local
+        # Add trusted hosts for NextAuth (both www and non-www)
+        echo "AUTH_TRUST_HOST=true" >> .env.local
+        
+        # Copy .env.local to .env for compatibility
+        cp .env.local .env
 
     - name: Install dependencies
       run: npm install --legacy-peer-deps
@@ -69,7 +72,7 @@ jobs:
         host: ${{ secrets.DIGITALOCEAN_HOST }}
         username: ${{ secrets.DIGITALOCEAN_USERNAME }}
         key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
-        source: ".next,package.json,package-lock.json,prisma,public,.env"
+        source: ".next,package.json,package-lock.json,prisma,public,.env,.env.local"
         target: "/var/www/rogan-writer"
         strip_components: 0
         rm: true
@@ -83,6 +86,7 @@ jobs:
         script: |
           cd /var/www/rogan-writer
           npm install --omit=dev --legacy-peer-deps
+          npx prisma generate
           npx prisma migrate deploy || true
           pm2 stop rogan-writer || true
           pm2 delete rogan-writer || true
