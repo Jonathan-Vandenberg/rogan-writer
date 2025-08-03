@@ -29,7 +29,11 @@ interface MoodSettings {
   enabled: boolean
 }
 
-export function MoodOverlay() {
+interface MoodOverlayProps {
+  showText?: boolean
+}
+
+export function MoodOverlay({ showText = true }: MoodOverlayProps = {}) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [moodSettings, setMoodSettings] = React.useState<MoodSettings>({
     color: "#4ECDC4",
@@ -135,7 +139,7 @@ export function MoodOverlay() {
         onClick={() => setIsOpen(!isOpen)}
       >
         <Palette className="h-4 w-4" />
-        <span className="sr-only sm:not-sr-only">Mood</span>
+        {showText && <span className="sr-only sm:not-sr-only">Mood</span>}
       </Button>
 
       {/* Floating Mood Control Card */}

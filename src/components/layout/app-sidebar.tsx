@@ -84,6 +84,7 @@ function SidebarLogoHeader() {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { state } = useSidebar()
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -126,7 +127,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-1">
-            <MoodOverlay />
+            <MoodOverlay showText={state === "expanded"} />
           </div>
         </div>
       </SidebarFooter>
