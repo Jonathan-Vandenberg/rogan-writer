@@ -27,18 +27,17 @@ jobs:
 
     - name: Set up environment files
       run: |
-        # Start with production config template
-        cp config/.env.production .env
-        
-        # Override template values with actual production secrets
-        echo "" >> .env
-        echo "# Production values from GitHub secrets" >> .env
-        echo "NODE_ENV=production" >> .env
+        # Create production .env file directly from secrets
+        echo "NODE_ENV=production" > .env
         echo "PORT=3000" >> .env
         echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
         echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
         echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
         echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+        
+        # Add Google OAuth if using NextAuth with Google
+        echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
+        echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
         
         # Copy for build process
         cp .env .env.local
@@ -64,6 +63,8 @@ jobs:
         NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
         NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
 
     - name: Prepare deployment files
       run: |
@@ -75,9 +76,9 @@ jobs:
     - name: Deploy to DigitalOcean
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.DO_HOST }}
-        username: ${{ secrets.DO_USERNAME }}
-        key: ${{ secrets.DO_SSH_KEY }}
+        host: ${{ secrets.DIGITALOCEAN_HOST }}
+        username: ${{ secrets.DIGITALOCEAN_USERNAME }}
+        key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
         source: ".next,package.json,package-lock.json,prisma,public,ecosystem.config.js,.env"
         target: "/var/www/rogan-writer/releases/${{ github.sha }}"
         strip_components: 0
@@ -86,9 +87,9 @@ jobs:
     - name: Start application
       uses: appleboy/ssh-action@v0.1.7
       with:
-        host: ${{ secrets.DO_HOST }}
-        username: ${{ secrets.DO_USERNAME }}
-        key: ${{ secrets.DO_SSH_KEY }}
+        host: ${{ secrets.DIGITALOCEAN_HOST }}
+        username: ${{ secrets.DIGITALOCEAN_USERNAME }}
+        key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
         script: |
           set -e
           echo "=== DEPLOYMENT START ==="
