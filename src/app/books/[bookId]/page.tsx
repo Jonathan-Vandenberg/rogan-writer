@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, BookOpen, Users, MapPin, Lightbulb, FileText, Eye, Settings } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { EditBookDialog } from "@/components/ui/edit-book-dialog"
 
 interface BookStats {
   id: string
@@ -19,6 +20,15 @@ interface BookStats {
   createdAt: string
   updatedAt: string
   coverImageUrl: string | null
+  pageWidth: number
+  pageHeight: number
+  fontSize: number
+  fontFamily: string
+  lineHeight: number
+  marginTop: number
+  marginBottom: number
+  marginLeft: number
+  marginRight: number
   _count: {
     chapters: number
     characters: number
@@ -48,6 +58,11 @@ export default function BookStatsPage() {
   const [book, setBook] = React.useState<BookStats | null>(null)
   const [stats, setStats] = React.useState<StatsData | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [showEditDialog, setShowEditDialog] = React.useState(false)
+
+  const handleBookUpdated = (updatedBook: any) => {
+    setBook(prev => prev ? { ...prev, ...updatedBook } : null)
+  }
 
   React.useEffect(() => {
     async function fetchBookStats() {
@@ -127,16 +142,7 @@ export default function BookStatsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Loading...</h1>
-        </div>
-      </div>
+     <></>
     )
   }
 
@@ -156,7 +162,8 @@ export default function BookStatsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -181,12 +188,14 @@ export default function BookStatsPage() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Link href={`/write?book=${bookId}`}>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Edit Book
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowEditDialog(true)}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Edit Book
+            </Button>
           </div>
         </div>
 
@@ -343,7 +352,7 @@ export default function BookStatsPage() {
         )}
 
         {/* Reading Card */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Read Your Book</h2>
             <p className="text-muted-foreground">
@@ -385,7 +394,35 @@ export default function BookStatsPage() {
               )}
             </CardContent>
           </Card>
-        </div>
+        </div> */}
       </div>
+
+      {/* Edit Book Modal */}
+      {book && (
+        <EditBookDialog
+          book={{
+            id: book.id,
+            title: book.title,
+            description: book.description,
+            genre: book.genre,
+            targetWords: book.targetWords,
+            status: book.status,
+            coverImageUrl: book.coverImageUrl,
+            pageWidth: book.pageWidth,
+            pageHeight: book.pageHeight,
+            fontSize: book.fontSize,
+            fontFamily: book.fontFamily,
+            lineHeight: book.lineHeight,
+            marginTop: book.marginTop,
+            marginBottom: book.marginBottom,
+            marginLeft: book.marginLeft,
+            marginRight: book.marginRight
+          }}
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          onBookUpdated={handleBookUpdated}
+        />
+      )}
+    </>
   )
 } 

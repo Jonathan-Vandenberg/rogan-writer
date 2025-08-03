@@ -87,7 +87,6 @@ function SinglePage({
     fontSize: `${fontSize}px`,
     fontFamily: fontFamily,
     lineHeight: lineHeight,
-    backgroundColor: '#fefefe',
     position: 'relative',
   }
 
@@ -103,7 +102,6 @@ function SinglePage({
     resize: 'none',
     backgroundColor: 'transparent',
     padding: 0,
-    color: '#1a1a1a',
     WebkitFontSmoothing: 'antialiased',
     MozOsxFontSmoothing: 'grayscale',
     textRendering: 'optimizeLegibility',
@@ -119,6 +117,7 @@ function SinglePage({
     <Card 
       className={cn(
         "relative overflow-hidden rounded-none shadow-lg border-none p-0",
+        "bg-white dark:bg-card text-gray-900 dark:text-gray-200",
         className
       )}
       style={pageStyle}
@@ -127,33 +126,32 @@ function SinglePage({
       {onPreviousPage && (
         <button
           onClick={onPreviousPage}
-          className="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white shadow-sm border border-gray-200 flex items-center justify-center transition-all hover:scale-105"
+          className="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white dark:bg-gray-700/80 dark:hover:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-600 flex items-center justify-center transition-all hover:scale-105"
           title="Previous page"
         >
-          <ChevronLeft className="h-4 w-4 text-gray-600" />
+          <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-gray-300" />
         </button>
       )}
       
       {onNextPage && (
         <button
           onClick={onNextPage}
-          className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white shadow-sm border border-gray-200 flex items-center justify-center transition-all hover:scale-105"
+          className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white dark:bg-gray-700/80 dark:hover:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-600 flex items-center justify-center transition-all hover:scale-105"
           title="Next page"
         >
-          <ChevronRight className="h-4 w-4 text-gray-600" />
+          <ChevronRight className="h-4 w-4 text-gray-600 dark:text-gray-300" />
         </button>
       )}
 
       {/* Chapter title (only on first page of chapter) */}
       {showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim() && (
         <div 
-          className="absolute top-0 left-0 right-0 z-5"
+          className="absolute top-0 left-0 right-0 z-5 text-gray-800 dark:text-gray-300"
           style={{
             fontFamily: chapterTitleFontFamily || fontFamily,
             fontSize: `${chapterTitleFontSize || 26}px`,
             textAlign: chapterTitleAlignment || 'center',
             fontWeight: 'bold',
-            color: '#2d3748',
             marginTop: `${marginTopPx}px`,
             marginLeft: `${marginLeftPx}px`,
             marginRight: `${marginRightPx}px`,
@@ -165,7 +163,7 @@ function SinglePage({
       )}
 
       {/* Page content */}
-      <Textarea
+        <Textarea
         ref={textareaRef}
         key={`page-${pageNumber}-single`}
         value={content}
@@ -176,7 +174,7 @@ function SinglePage({
         onKeyUp={onCursorPositionChange}
         onClick={onCursorPositionChange}
         placeholder={isFirstPageOfChapter && showChapterTitle && chapterTitle && chapterTitle.trim() ? "Start writing your chapter..." : "Continue your story..."}
-        className="absolute bg-transparent border-none resize-none focus:ring-0 focus:border-none focus:outline-none overflow-hidden [&:focus]:border-none [&:focus]:outline-none [&:focus]:ring-0 cursor-text"
+        className="absolute bg-transparent border-none resize-none focus:ring-0 focus:border-none focus:outline-none overflow-hidden [&:focus]:border-none [&:focus]:outline-none [&:focus]:ring-0 cursor-text text-gray-900 dark:text-gray-300 placeholder:text-gray-500 dark:placeholder:text-gray-400"
         style={{
           ...textAreaStyle,
           top: showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim() 
@@ -194,7 +192,7 @@ function SinglePage({
         {/* Page number */}
         {showPageNumber && (
           <div 
-            className="absolute text-gray-500 text-xs"
+            className="absolute text-gray-500 dark:text-gray-400 text-xs"
             style={{
               // fontSize: `${fontSize! * 0.9}px`,
               fontFamily: fontFamily,

@@ -112,9 +112,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Your Library</h1>
           <p className="text-muted-foreground">Loading your writing workspace...</p>
         </div>
       </div>
@@ -123,9 +123,9 @@ export default function DashboardPage() {
 
   if (!dashboardData) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Your Library</h1>
           <p className="text-muted-foreground">
             No data available. Please try refreshing the page.
           </p>

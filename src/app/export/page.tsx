@@ -77,7 +77,7 @@ export default function ExportPage() {
     paperSize: "letter",
     margins: "standard",
     fontSize: 12,
-    fontFamily: "Times New Roman",
+    fontFamily: "Verdana",
     lineSpacing: 2
   })
   const [exportStats, setExportStats] = React.useState<ExportStats | null>(null)

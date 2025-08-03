@@ -320,8 +320,7 @@ export default function ReadBookPage() {
       </div>
 
       {/* Reading Area */}
-      <Card className="">
-        <CardContent className="p-8">
+      <div>
           {pages.length > 0 ? (
             <div className="flex justify-center">
               <div className={cn(
@@ -397,8 +396,7 @@ export default function ReadBookPage() {
               </Link>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
       {/* Page Navigation */}
       {pages.length > 0 && (

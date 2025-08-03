@@ -43,7 +43,6 @@ interface TypographyControlsProps {
 const FONT_FAMILIES = [
   { value: "Verdana", label: "Verdana", category: "sans-serif" },
   { value: "Garamond", label: "Garamond", category: "serif" },
-  { value: "Minion Pro", label: "Minion Pro", category: "serif" },
   { value: "Times New Roman", label: "Times New Roman", category: "serif" },
 ]
 
