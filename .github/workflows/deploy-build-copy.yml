@@ -18,9 +18,11 @@ jobs:
           node-version: '18'
           cache: 'npm'
           
-      - name: Install dependencies
-        run: npm ci
-        
+      - name: Clean install dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --legacy-peer-deps
+          
       - name: Generate Prisma client
         run: npx prisma generate
         
@@ -94,7 +96,7 @@ jobs:
             fi
             
             # Install only production dependencies
-            npm ci --omit=dev
+            npm install --omit=dev --legacy-peer-deps
             
             # Run database migrations
             npx prisma migrate deploy
