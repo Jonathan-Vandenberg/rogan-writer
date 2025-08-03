@@ -83,8 +83,9 @@ jobs:
         target: "/var/www/rogan-writer/releases/${{ github.sha }}"
         strip_components: 0
         rm: false
+        debug: true
 
-    - name: Start application
+    - name: Verify deployment files and start application
       uses: appleboy/ssh-action@v0.1.7
       with:
         host: ${{ secrets.DIGITALOCEAN_HOST }}
@@ -107,6 +108,30 @@ jobs:
           echo "=== Files in release directory ==="
           ls -la
           
+          # Verify critical files exist
+          if [ ! -f package.json ]; then
+            echo "❌ ERROR: package.json not found! SCP failed."
+            echo "Available files:"
+            ls -la
+            exit 1
+          fi
+          
+          if [ ! -f .env ]; then
+            echo "❌ ERROR: .env file not found! SCP failed."
+            echo "Available files:"
+            ls -la
+            exit 1
+          fi
+          
+          if [ ! -d .next ]; then
+            echo "❌ ERROR: .next directory not found! Build files missing."
+            echo "Available files:"
+            ls -la
+            exit 1
+          fi
+          
+          echo "✅ All required files found"
+          
           echo "=== Installing production dependencies ==="
           if npm install --omit=dev --legacy-peer-deps; then
             echo "✅ Dependencies installed successfully"
@@ -127,24 +152,15 @@ jobs:
           ln -sf /var/www/rogan-writer/releases/${{ github.sha }} /var/www/rogan-writer/current
           echo "✅ Symlink updated"
           
+          # Verify symlink was created
+          if [ ! -L /var/www/rogan-writer/current ]; then
+            echo "❌ ERROR: Symlink creation failed!"
+            exit 1
+          fi
+          
           echo "=== Starting application with PM2 ==="
           cd /var/www/rogan-writer/current
           echo "Current directory: $(pwd)"
-          
-          # Check if required files exist
-          if [ ! -f ecosystem.config.js ]; then
-            echo "❌ ERROR: ecosystem.config.js not found!"
-            ls -la
-            exit 1
-          fi
-          
-          if [ ! -f .env ]; then
-            echo "❌ ERROR: .env file not found!"
-            ls -la
-            exit 1
-          fi
-          
-          echo "✅ Required files found"
           
           # Check Node.js version
           echo "Node.js version: $(node --version)"
