@@ -24,7 +24,6 @@ jobs:
       with:
         node-version: '18.18.0'
         architecture: 'x64'
-        cache: 'npm'
 
     - name: Set up environment files
       run: |
@@ -72,6 +71,7 @@ jobs:
         source: ".next,package.json,package-lock.json,prisma,public,ecosystem.config.js,.env"
         target: "/var/www/rogan-writer/releases/${{ github.sha }}"
         strip_components: 0
+        rm: false
 
     - name: Start application
       uses: appleboy/ssh-action@v0.1.7
@@ -87,30 +87,57 @@ jobs:
           # Navigate to new release
           cd /var/www/rogan-writer/releases/${{ github.sha }}
           
-          # Install production dependencies
+          echo "=== Installing production dependencies ==="
           npm install --omit=dev --legacy-peer-deps
           
-          # Run database migrations
-          npx prisma migrate deploy
+          echo "=== Running database migrations ==="
+          npx prisma migrate deploy || echo "Migration failed or no migrations to run"
           
-          # Stop existing application
-          pm2 stop rogan-writer || true
-          pm2 delete rogan-writer || true
+          echo "=== Stopping existing application ==="
+          pm2 stop rogan-writer || echo "No existing app to stop"
+          pm2 delete rogan-writer || echo "No existing app to delete"
           
-          # Update symlink to current release
+          echo "=== Updating symlink to current release ==="
           rm -f /var/www/rogan-writer/current
           ln -sf /var/www/rogan-writer/releases/${{ github.sha }} /var/www/rogan-writer/current
           
-          # Start application with PM2
+          echo "=== Starting application with PM2 ==="
           cd /var/www/rogan-writer/current
+          
+          # Check if ecosystem.config.js exists
+          if [ ! -f ecosystem.config.js ]; then
+            echo "ERROR: ecosystem.config.js not found!"
+            ls -la
+            exit 1
+          fi
+          
+          # Start the application
           NODE_ENV=production pm2 start ecosystem.config.js
+          
+          # Wait a moment for startup
+          sleep 5
+          
+          echo "=== PM2 Status ==="
+          pm2 status
+          
+          echo "=== PM2 Logs (last 10 lines) ==="
+          pm2 logs rogan-writer --lines 10 || echo "No logs available yet"
           
           # Save PM2 configuration
           pm2 save
           
-          # Show status
-          pm2 status
+          echo "=== Checking if app is running ==="
+          if pm2 list | grep -q "rogan-writer.*online"; then
+            echo "✅ Application is running successfully"
+          else
+            echo "❌ Application failed to start"
+            pm2 logs rogan-writer --err --lines 20
+            exit 1
+          fi
           
-          # Clean up old releases (keep last 3)
+          echo "=== Clean up old releases (keep last 3) ==="
           cd /var/www/rogan-writer/releases
-          ls -t | tail -n +4 | xargs rm -rf -- 
+          ls -t | tail -n +4 | xargs rm -rf -- || echo "No old releases to clean up"
+          
+          echo "=== Final status ==="
+          pm2 status 
