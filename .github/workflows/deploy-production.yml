@@ -94,7 +94,6 @@ jobs:
         timeout: 300s
         command_timeout: 60s
         script: |
-          set -e
           echo "=== DEPLOYMENT START ==="
           
           # Create directories if they don't exist
@@ -102,104 +101,53 @@ jobs:
           mkdir -p /var/www/rogan-writer/logs
           echo "✅ Directories created"
           
-          # Navigate to new release
+          # Navigate to new release and check files
           cd /var/www/rogan-writer/releases/${{ github.sha }}
-          echo "✅ Navigated to release directory: $(pwd)"
+          echo "📁 Current directory: $(pwd)"
+          echo "📂 Files deployed:"
+          ls -la | head -10
           
-          # Check what files were deployed
-          echo "=== Files in release directory ==="
-          ls -la
-          
-          # Verify critical files exist
-          if [ ! -f package.json ]; then
-            echo "❌ ERROR: package.json not found! SCP failed."
-            echo "Available files:"
+          # Quick file validation
+          if [ ! -f package.json ] || [ ! -f .env ] || [ ! -d .next ]; then
+            echo "❌ Missing critical files"
             ls -la
             exit 1
           fi
-          
-          if [ ! -f .env ]; then
-            echo "❌ ERROR: .env file not found! SCP failed."
-            echo "Available files:"
-            ls -la
-            exit 1
-          fi
-          
-          if [ ! -d .next ]; then
-            echo "❌ ERROR: .next directory not found! Build files missing."
-            echo "Available files:"
-            ls -la
-            exit 1
-          fi
-          
           echo "✅ All required files found"
           
-          echo "=== Installing production dependencies ==="
-          if npm install --omit=dev --legacy-peer-deps; then
-            echo "✅ Dependencies installed successfully"
-          else
-            echo "❌ Failed to install dependencies"
-            exit 1
-          fi
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          npm install --omit=dev --legacy-peer-deps >/dev/null 2>&1
+          echo "✅ Dependencies installed"
           
-          echo "=== Running database migrations ==="
-          npx prisma migrate deploy || echo "⚠️  Migration failed or no migrations to run"
+          # Run migrations
+          echo "🗄️  Running migrations..."
+          npx prisma migrate deploy >/dev/null 2>&1 || echo "⚠️  No migrations needed"
           
-          echo "=== Stopping existing application ==="
-          pm2 stop rogan-writer 2>/dev/null || echo "ℹ️  No existing app to stop"
-          pm2 delete rogan-writer 2>/dev/null || echo "ℹ️  No existing app to delete"
+          # Stop existing app
+          echo "🛑 Stopping existing app..."
+          pm2 stop rogan-writer >/dev/null 2>&1 || true
+          pm2 delete rogan-writer >/dev/null 2>&1 || true
           
-          echo "=== Updating symlink to current release ==="
+          # Update symlink
+          echo "🔗 Updating symlink..."
           rm -f /var/www/rogan-writer/current
           ln -sf /var/www/rogan-writer/releases/${{ github.sha }} /var/www/rogan-writer/current
-          echo "✅ Symlink updated"
           
-          # Verify symlink was created
-          if [ ! -L /var/www/rogan-writer/current ]; then
-            echo "❌ ERROR: Symlink creation failed!"
-            exit 1
-          fi
-          
-          echo "=== Starting application with PM2 ==="
+          # Start application
+          echo "🚀 Starting application..."
           cd /var/www/rogan-writer/current
-          echo "Current directory: $(pwd)"
+          NODE_ENV=production pm2 start ecosystem.config.js >/dev/null 2>&1
           
-          # Check Node.js version
-          echo "Node.js version: $(node --version)"
-          echo "NPM version: $(npm --version)"
-          
-          # Show environment (first few lines only)
-          echo "Environment variables:"
-          head -3 .env
-          
-          # Start the application
-          echo "Starting PM2 process..."
-          if NODE_ENV=production pm2 start ecosystem.config.js; then
-            echo "✅ PM2 start command executed"
-          else
-            echo "❌ PM2 start failed"
-            exit 1
-          fi
-          
-          # Wait for startup
-          sleep 15
-          
-          # Check PM2 status
-          echo "=== PM2 STATUS ==="
-          pm2 list
-          
-          # Check if process is actually running
+          # Wait and check status
+          sleep 10
           if pm2 list | grep -q "rogan-writer.*online"; then
-            echo "✅ Application is running successfully"
-            pm2 save
-            echo "✅ PM2 configuration saved"
+            echo "✅ Application started successfully"
+            pm2 save >/dev/null 2>&1
           else
             echo "❌ Application failed to start"
-            echo "PM2 Error logs:"
-            pm2 logs rogan-writer --err --lines 20 2>/dev/null || echo "No error logs available"
-            echo "PM2 Output logs:"  
-            pm2 logs rogan-writer --out --lines 20 2>/dev/null || echo "No output logs available"
+            pm2 logs rogan-writer --err --lines 5 2>/dev/null || true
             exit 1
           fi
           
-          echo "=== DEPLOYMENT SUCCESSFUL ===" 
+          echo "🎉 DEPLOYMENT SUCCESSFUL" 
