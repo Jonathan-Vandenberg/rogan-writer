@@ -106,7 +106,7 @@ export function TypographyControls({
   )
 
   return (
-    <Card className={className}>
+    <div className={className + " bg-card rounded-lg border border-border py-3"}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -493,6 +493,6 @@ export function TypographyControls({
           </>
         )}
       </CardContent>
-    </Card>
+    </div>
   )
 } 

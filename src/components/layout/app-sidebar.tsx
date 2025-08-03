@@ -33,6 +33,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
@@ -65,16 +66,29 @@ const navigationItems = [
   },
 ]
 
+function SidebarLogoHeader() {
+  const { state } = useSidebar()
+  
+  return (
+    <div className="flex items-center gap-2 px-2 py-1">
+      <BookOpen className={cn(
+        "transition-all duration-200",
+        state === "collapsed" ? "h-8 w-8" : "h-6 w-6"
+      )} />
+      {state === "expanded" && (
+        <span className="font-semibold font-SFMono-Regular">little brother</span>
+      )}
+    </div>
+  )
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <BookOpen className="h-6 w-6" />
-          <span className="font-semibold font-SFMono-Regular"></span>
-        </div>
+        <SidebarLogoHeader />
       </SidebarHeader>
       
       <SidebarContent>

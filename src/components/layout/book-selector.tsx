@@ -55,6 +55,8 @@ export function BookSelector() {
   const handleBookCreated = React.useCallback((newBook: Book) => {
     setBooks(prev => [newBook, ...prev])
     setSelectedBookId(newBook.id)
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('bookCreated', { detail: newBook }))
   }, [setSelectedBookId])
 
   if (loading) {

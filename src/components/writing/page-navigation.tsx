@@ -114,7 +114,7 @@ export function PageNavigation({
   return (
     <div className={cn("space-y-3", className)}>
       {/* Chapter Navigation */}
-      <Card className="p-3">
+      <div className="p-3 bg-card rounded-lg border border-border">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Book className="h-4 w-4 text-muted-foreground" />
@@ -190,7 +190,7 @@ export function PageNavigation({
               </form>
             ) : (
               <div 
-                className="flex items-center gap-2 group cursor-pointer"
+                className="flex items-center gap-2 group cursor-pointer py-3"
                 onClick={handleTitleEdit}
               >
                 <span className="text-lg font-bold text-center truncate flex-1">
@@ -203,10 +203,10 @@ export function PageNavigation({
             )}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Page Navigation */}
-      <Card className="p-3">
+      <div className="p-3 mt-6 bg-card rounded-lg border border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -247,7 +247,7 @@ export function PageNavigation({
         </div>
 
         {/* Quick Jump Pages */}
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-2 flex flex-wrap gap-1 py-3">
           {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
             const pageNum = i + 1
             return (
@@ -266,7 +266,7 @@ export function PageNavigation({
             <span className="text-xs text-muted-foreground px-1">...</span>
           )}
         </div>
-      </Card>
+      </div>
     </div>
   )
 } 

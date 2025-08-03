@@ -88,6 +88,22 @@ export default function DashboardPage() {
     fetchData()
   }, [fetchData])
 
+  // Listen for book creation events from other components
+  React.useEffect(() => {
+    const handleBookCreatedEvent = (event: CustomEvent) => {
+      const newBook = event.detail
+      setBooks(prev => [newBook, ...prev])
+      setSelectedBookId(newBook.id)
+      // Also refresh dashboard data to get updated stats
+      fetchData()
+    }
+
+    window.addEventListener('bookCreated', handleBookCreatedEvent as EventListener)
+    return () => {
+      window.removeEventListener('bookCreated', handleBookCreatedEvent as EventListener)
+    }
+  }, [setSelectedBookId, fetchData])
+
   const handleBookCreated = React.useCallback((newBook: Book) => {
     setShowCreateDialog(false)
     setSelectedBookId(newBook.id) // Set the newly created book as selected

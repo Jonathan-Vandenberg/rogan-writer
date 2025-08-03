@@ -59,6 +59,10 @@ export class BookService {
     fontSize?: number
     fontFamily?: string
     lineHeight?: number
+    marginTop?: number
+    marginBottom?: number
+    marginLeft?: number
+    marginRight?: number
   }): Promise<Book> {
     // Create the book and its first chapter in a transaction
     const result = await prisma.$transaction(async (tx) => {

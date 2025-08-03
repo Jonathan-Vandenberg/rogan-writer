@@ -35,13 +35,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
-    // Create the book
+    // Create the book with default typography settings
     const book = await BookService.createBook({
       title: title.trim(),
       description: description?.trim() || undefined,
       genre: genre?.trim() || undefined,
       targetWords: targetWords ? parseInt(targetWords) : undefined,
-      userId: session.user.id
+      userId: session.user.id,
+      // Default typography settings
+      pageWidth: 6.0,
+      pageHeight: 9.0,
+      fontSize: 16,
+      fontFamily: "Verdana",
+      lineHeight: 1.5,
+      marginTop: 0.7,
+      marginBottom: 0.7,
+      marginLeft: 0.7,
+      marginRight: 0.7
     })
 
     return NextResponse.json(book)

@@ -52,13 +52,13 @@ export default function WritePage() {
   // Typography settings - initialize with defaults first
   const [typographySettings, setTypographySettings] = React.useState<TypographySettings>({
     fontFamily: "Verdana",
-    fontSize: 12,
+    fontSize: 16,
     lineHeight: 1.5,
     pageWidth: 6,
     pageHeight: 9,
     marginTop: 0.7,
-    marginLeft: 1,
-    marginRight: 1,
+    marginLeft: 0.7,
+    marginRight: 0.7,
     chapterTitleFontFamily: "Verdana",
     chapterTitleFontSize: 26,
     chapterTitleAlignment: 'center',
@@ -93,13 +93,13 @@ export default function WritePage() {
     if (book) {
       setTypographySettings({
         fontFamily: book.fontFamily || "Verdana",
-        fontSize: book.fontSize || 12,
+        fontSize: book.fontSize || 16,
         lineHeight: book.lineHeight || 1.5,
         pageWidth: book.pageWidth || 6,
         pageHeight: book.pageHeight || 9,
         marginTop: book.marginTop || 0.7,
-        marginLeft: book.marginLeft || 1,
-        marginRight: book.marginRight || 1,
+        marginLeft: book.marginLeft || 0.7,
+        marginRight: book.marginRight || 0.7,
         chapterTitleFontFamily: book.fontFamily || "Verdana",
         chapterTitleFontSize: 26,
         chapterTitleAlignment: 'center',
@@ -503,7 +503,7 @@ export default function WritePage() {
             />
 
             {/* Quick Stats */}
-            <Card>
+            {/* <div className="bg-card rounded-lg border border-border py-3">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Session Stats</CardTitle>
               </CardHeader>
@@ -521,7 +521,7 @@ export default function WritePage() {
                   <span className="font-medium">{totalPages}</span>
                 </div>
               </CardContent>
-            </Card>
+            </div> */}
           </div>
         )}
 
