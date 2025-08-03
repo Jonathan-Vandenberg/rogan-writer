@@ -111,11 +111,47 @@ jobs:
             exit 1
           fi
           
+          echo "=== Current directory contents ==="
+          ls -la
+          
+          echo "=== Checking Node.js version ==="
+          node --version
+          npm --version
+          
+          echo "=== Checking environment variables ==="
+          cat .env | head -5
+          
+          echo "=== Testing npm start directly ==="
+          timeout 10s npm start > /tmp/npm-start.log 2>&1 &
+          sleep 5
+          kill %1 2>/dev/null || true
+          echo "NPM start test output:"
+          cat /tmp/npm-start.log || echo "No npm start output"
+          
           # Start the application
+          echo "=== Starting with PM2 ==="
           NODE_ENV=production pm2 start ecosystem.config.js
           
           # Wait a moment for startup
-          sleep 5
+          sleep 10
+          
+          echo "=== PM2 List ==="
+          pm2 list
+          
+          echo "=== PM2 Info ==="
+          pm2 info rogan-writer || echo "No PM2 info available"
+          
+          echo "=== PM2 Logs (stdout) ==="
+          pm2 logs rogan-writer --out --lines 20 || echo "No stdout logs"
+          
+          echo "=== PM2 Logs (stderr) ==="
+          pm2 logs rogan-writer --err --lines 20 || echo "No stderr logs"
+          
+          echo "=== Checking port 3000 ==="
+          netstat -tlnp | grep :3000 || echo "Port 3000 not listening"
+          
+          echo "=== Process list ==="
+          ps aux | grep -E "(node|npm)" | grep -v grep || echo "No node processes"
           
           echo "=== PM2 Status ==="
           pm2 status
