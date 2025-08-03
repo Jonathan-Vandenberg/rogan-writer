@@ -80,100 +80,97 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         key: ${{ secrets.DO_SSH_KEY }}
         script: |
+          set -e
+          echo "=== DEPLOYMENT START ==="
+          
           # Create directories if they don't exist
           mkdir -p /var/www/rogan-writer/releases/${{ github.sha }}
           mkdir -p /var/www/rogan-writer/logs
+          echo "✅ Directories created"
           
           # Navigate to new release
           cd /var/www/rogan-writer/releases/${{ github.sha }}
+          echo "✅ Navigated to release directory: $(pwd)"
+          
+          # Check what files were deployed
+          echo "=== Files in release directory ==="
+          ls -la
           
           echo "=== Installing production dependencies ==="
-          npm install --omit=dev --legacy-peer-deps
+          if npm install --omit=dev --legacy-peer-deps; then
+            echo "✅ Dependencies installed successfully"
+          else
+            echo "❌ Failed to install dependencies"
+            exit 1
+          fi
           
           echo "=== Running database migrations ==="
-          npx prisma migrate deploy || echo "Migration failed or no migrations to run"
+          npx prisma migrate deploy || echo "⚠️  Migration failed or no migrations to run"
           
           echo "=== Stopping existing application ==="
-          pm2 stop rogan-writer || echo "No existing app to stop"
-          pm2 delete rogan-writer || echo "No existing app to delete"
+          pm2 stop rogan-writer 2>/dev/null || echo "ℹ️  No existing app to stop"
+          pm2 delete rogan-writer 2>/dev/null || echo "ℹ️  No existing app to delete"
           
           echo "=== Updating symlink to current release ==="
           rm -f /var/www/rogan-writer/current
           ln -sf /var/www/rogan-writer/releases/${{ github.sha }} /var/www/rogan-writer/current
+          echo "✅ Symlink updated"
           
           echo "=== Starting application with PM2 ==="
           cd /var/www/rogan-writer/current
+          echo "Current directory: $(pwd)"
           
-          # Check if ecosystem.config.js exists
+          # Check if required files exist
           if [ ! -f ecosystem.config.js ]; then
-            echo "ERROR: ecosystem.config.js not found!"
+            echo "❌ ERROR: ecosystem.config.js not found!"
             ls -la
             exit 1
           fi
           
-          echo "=== Current directory contents ==="
-          ls -la
-          
-          echo "=== Checking Node.js version ==="
-          node --version
-          npm --version
-          
-          echo "=== Checking environment variables ==="
-          cat .env | head -5
-          
-          echo "=== Testing npm start directly ==="
-          timeout 10s npm start > /tmp/npm-start.log 2>&1 &
-          sleep 5
-          kill %1 2>/dev/null || true
-          echo "NPM start test output:"
-          cat /tmp/npm-start.log || echo "No npm start output"
-          
-          # Start the application
-          echo "=== Starting with PM2 ==="
-          NODE_ENV=production pm2 start ecosystem.config.js
-          
-          # Wait a moment for startup
-          sleep 10
-          
-          echo "=== PM2 List ==="
-          pm2 list
-          
-          echo "=== PM2 Info ==="
-          pm2 info rogan-writer || echo "No PM2 info available"
-          
-          echo "=== PM2 Logs (stdout) ==="
-          pm2 logs rogan-writer --out --lines 20 || echo "No stdout logs"
-          
-          echo "=== PM2 Logs (stderr) ==="
-          pm2 logs rogan-writer --err --lines 20 || echo "No stderr logs"
-          
-          echo "=== Checking port 3000 ==="
-          netstat -tlnp | grep :3000 || echo "Port 3000 not listening"
-          
-          echo "=== Process list ==="
-          ps aux | grep -E "(node|npm)" | grep -v grep || echo "No node processes"
-          
-          echo "=== PM2 Status ==="
-          pm2 status
-          
-          echo "=== PM2 Logs (last 10 lines) ==="
-          pm2 logs rogan-writer --lines 10 || echo "No logs available yet"
-          
-          # Save PM2 configuration
-          pm2 save
-          
-          echo "=== Checking if app is running ==="
-          if pm2 list | grep -q "rogan-writer.*online"; then
-            echo "✅ Application is running successfully"
-          else
-            echo "❌ Application failed to start"
-            pm2 logs rogan-writer --err --lines 20
+          if [ ! -f .env ]; then
+            echo "❌ ERROR: .env file not found!"
+            ls -la
             exit 1
           fi
           
-          echo "=== Clean up old releases (keep last 3) ==="
-          cd /var/www/rogan-writer/releases
-          ls -t | tail -n +4 | xargs rm -rf -- || echo "No old releases to clean up"
+          echo "✅ Required files found"
           
-          echo "=== Final status ==="
-          pm2 status 
+          # Check Node.js version
+          echo "Node.js version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          
+          # Show environment (first few lines only)
+          echo "Environment variables:"
+          head -3 .env
+          
+          # Start the application
+          echo "Starting PM2 process..."
+          if NODE_ENV=production pm2 start ecosystem.config.js; then
+            echo "✅ PM2 start command executed"
+          else
+            echo "❌ PM2 start failed"
+            exit 1
+          fi
+          
+          # Wait for startup
+          sleep 15
+          
+          # Check PM2 status
+          echo "=== PM2 STATUS ==="
+          pm2 list
+          
+          # Check if process is actually running
+          if pm2 list | grep -q "rogan-writer.*online"; then
+            echo "✅ Application is running successfully"
+            pm2 save
+            echo "✅ PM2 configuration saved"
+          else
+            echo "❌ Application failed to start"
+            echo "PM2 Error logs:"
+            pm2 logs rogan-writer --err --lines 20 2>/dev/null || echo "No error logs available"
+            echo "PM2 Output logs:"  
+            pm2 logs rogan-writer --out --lines 20 2>/dev/null || echo "No output logs available"
+            exit 1
+          fi
+          
+          echo "=== DEPLOYMENT SUCCESSFUL ===" 
