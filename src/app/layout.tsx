@@ -22,6 +22,8 @@ export const metadata: Metadata = {
   description: "A comprehensive book writing application with AI assistance, plot tracking, and collaborative features.",
 }
 
+// DEPLOYMENT TEST
+
 export default function RootLayout({
   children,
 }: Readonly<{
