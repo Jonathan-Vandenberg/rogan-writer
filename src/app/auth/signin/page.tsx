@@ -32,10 +32,6 @@ export default function SignInPage() {
             <Mail className="mr-2 h-4 w-4" />
             Continue with Google
           </Button>
-
-          <div className="text-center text-sm text-muted-foreground">
-            <p>Sign in with your Google account to access your writing workspace</p>
-          </div>
         </CardContent>
       </Card>
     </div>

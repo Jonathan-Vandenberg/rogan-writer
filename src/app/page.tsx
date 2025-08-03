@@ -96,13 +96,13 @@ export default function DashboardPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'PUBLISHED': return 'bg-green-500'
-      case 'FINAL_DRAFT': return 'bg-blue-500'
-      case 'EDITING': return 'bg-yellow-500'
-      case 'FIRST_DRAFT_COMPLETE': return 'bg-purple-500'
-      case 'IN_PROGRESS': return 'bg-orange-500'
-      case 'DRAFT': return 'bg-gray-500'
-      default: return 'bg-gray-400'
+      case 'PUBLISHED': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+      case 'FINAL_DRAFT': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+      case 'EDITING': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+      case 'FIRST_DRAFT_COMPLETE': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+      case 'IN_PROGRESS': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+      case 'DRAFT': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+      default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
     }
   }
 
@@ -159,6 +159,11 @@ export default function DashboardPage() {
                             {book.genre && (
                               <Badge variant="outline" className="text-xs">
                                 {book.genre}
+                              </Badge>
+                            )}
+                            {book.status && (
+                              <Badge variant="outline" className={cn("text-xs", getStatusColor(book.status))}>
+                                {formatStatus(book.status)}
                               </Badge>
                             )}
                           </div>

@@ -33,10 +33,11 @@ export function MoodOverlay() {
   const [isOpen, setIsOpen] = React.useState(false)
   const [moodSettings, setMoodSettings] = React.useState<MoodSettings>({
     color: "#4ECDC4",
-    opacity: 20,
+    opacity: 3,
     enabled: false
   })
   const [isMounted, setIsMounted] = React.useState(false)
+  const [hasLoaded, setHasLoaded] = React.useState(false)
   const buttonRef = React.useRef<HTMLButtonElement>(null)
   const cardRef = React.useRef<HTMLDivElement>(null)
 
@@ -75,12 +76,15 @@ export function MoodOverlay() {
         console.error('Failed to load mood settings:', error)
       }
     }
+    setHasLoaded(true)
   }, [])
 
-  // Save settings to localStorage whenever they change
+  // Save settings to localStorage whenever they change (but only after initial load)
   React.useEffect(() => {
-    localStorage.setItem('mood-settings', JSON.stringify(moodSettings))
-  }, [moodSettings])
+    if (hasLoaded) {
+      localStorage.setItem('mood-settings', JSON.stringify(moodSettings))
+    }
+  }, [moodSettings, hasLoaded])
 
   const handleColorChange = (color: string) => {
     setMoodSettings(prev => ({ ...prev, color }))
@@ -95,7 +99,9 @@ export function MoodOverlay() {
   }
 
   const resetMood = () => {
-    setMoodSettings({ color: "#4ECDC4", opacity: 20, enabled: false })
+    const defaultSettings = { color: "#4ECDC4", opacity: 3, enabled: false }
+    setMoodSettings(defaultSettings)
+    localStorage.setItem('mood-settings', JSON.stringify(defaultSettings))
   }
 
   // Render overlay using portal for consistent z-index behavior
@@ -189,7 +195,7 @@ export function MoodOverlay() {
               </div>
               
               {/* Custom Color Input */}
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-xs mt-6">
                 <Label htmlFor="custom-color" className="text-xs">Custom:</Label>
                 <input
                   id="custom-color"
@@ -215,15 +221,11 @@ export function MoodOverlay() {
               <Slider
                 value={[moodSettings.opacity]}
                 onValueChange={handleOpacityChange}
-                max={50}
-                min={5}
+                max={20}
+                min={1}
                 step={1}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Light (5%)</span>
-                <span>Heavy (50%)</span>
-              </div>
             </div>
 
             {/* Reset Button */}
