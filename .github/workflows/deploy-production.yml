@@ -91,6 +91,8 @@ jobs:
         host: ${{ secrets.DIGITALOCEAN_HOST }}
         username: ${{ secrets.DIGITALOCEAN_USERNAME }}
         key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
+        timeout: 300s
+        command_timeout: 60s
         script: |
           set -e
           echo "=== DEPLOYMENT START ==="
