@@ -78,7 +78,7 @@ export function BookSelector() {
         >
           <div className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
-            <span>Create Your First Book</span>
+            <span>Create Book</span>
           </div>
           <Plus className="h-4 w-4" />
         </Button>
@@ -101,11 +101,11 @@ export function BookSelector() {
             role="combobox"
             className="w-[200px] justify-between"
           >
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <BookOpen className="h-4 w-4 shrink-0" />
               <span className="truncate">{selectedBook.title}</span>
             </div>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-[200px]" align="start">
@@ -125,9 +125,6 @@ export function BookSelector() {
               />
               <div className="flex flex-col gap-1">
                 <span className="font-medium">{book.title}</span>
-                <span className="text-xs text-muted-foreground capitalize">
-                  {book.status.replace("_", " ")}
-                </span>
               </div>
             </DropdownMenuItem>
           ))}

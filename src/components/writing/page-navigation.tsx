@@ -115,53 +115,53 @@ export function PageNavigation({
     <div className={cn("space-y-3", className)}>
       {/* Chapter Navigation */}
       <Card className="p-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Book className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Chapter</span>
           </div>
           
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onChapterChange(Math.max(1, currentChapter - 1))}
-              disabled={!canGoPrevChapter}
-              className="h-7 w-7 p-0"
-            >
-              <SkipBack className="h-3 w-3" />
-            </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onNewChapter}
+            className="h-7 px-2"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            New
+          </Button>
+        </div>
+        
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onChapterChange(Math.max(1, currentChapter - 1))}
+            disabled={!canGoPrevChapter}
+            className="h-7 w-7 p-0"
+          >
+            <SkipBack className="h-3 w-3" />
+          </Button>
 
-            <form onSubmit={handleChapterInputSubmit} className="flex items-center gap-1">
-              <Input
-                value={chapterInput}
-                onChange={(e) => setChapterInput(e.target.value)}
-                className="h-7 w-12 text-center text-xs p-1"
-                onBlur={handleChapterInputSubmit}
-              />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">of {totalChapters}</span>
-            </form>
+          <form onSubmit={handleChapterInputSubmit} className="flex items-center gap-1">
+            <Input
+              value={chapterInput}
+              onChange={(e) => setChapterInput(e.target.value)}
+              className="h-7 w-12 text-center text-xs p-1"
+              onBlur={handleChapterInputSubmit}
+            />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">of {totalChapters}</span>
+          </form>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onChapterChange(Math.min(totalChapters, currentChapter + 1))}
-              disabled={!canGoNextChapter}
-              className="h-7 w-7 p-0"
-            >
-              <SkipForward className="h-3 w-3" />
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onNewChapter}
-              className="h-7 px-2"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              New
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onChapterChange(Math.min(totalChapters, currentChapter + 1))}
+            disabled={!canGoNextChapter}
+            className="h-7 w-7 p-0"
+          >
+            <SkipForward className="h-3 w-3" />
+          </Button>
         </div>
 
         {/* Editable Chapter Title */}

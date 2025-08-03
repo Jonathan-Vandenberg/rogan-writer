@@ -4,7 +4,7 @@ import { ChapterService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const chapter = await ChapterService.getChapterById(params.chapterId)
+    const resolvedParams = await params
+    const chapter = await ChapterService.getChapterById(resolvedParams.chapterId)
     
     if (!chapter) {
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 })
@@ -28,7 +29,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -37,16 +38,17 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
     // Handle content updates specifically
     if (data.content !== undefined) {
-      const chapter = await ChapterService.updateChapterContent(params.chapterId, data.content)
+      const chapter = await ChapterService.updateChapterContent(resolvedParams.chapterId, data.content)
       return NextResponse.json(chapter)
     }
     
     // Handle other field updates
-    const chapter = await ChapterService.updateChapter(params.chapterId, {
+    const chapter = await ChapterService.updateChapter(resolvedParams.chapterId, {
       title: data.title,
       description: data.description,
       orderIndex: data.orderIndex
@@ -61,7 +63,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -70,7 +72,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    await ChapterService.deleteChapter(params.chapterId)
+    const resolvedParams = await params
+    await ChapterService.deleteChapter(resolvedParams.chapterId)
     
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

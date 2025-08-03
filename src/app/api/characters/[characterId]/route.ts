@@ -4,7 +4,7 @@ import { CharacterService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { characterId: string } }
+  { params }: { params: Promise<{ characterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const character = await CharacterService.getCharacterById(params.characterId)
+    const resolvedParams = await params
+    const character = await CharacterService.getCharacterById(resolvedParams.characterId)
     
     if (!character) {
       return NextResponse.json({ error: 'Character not found' }, { status: 404 })
@@ -28,7 +29,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { characterId: string } }
+  { params }: { params: Promise<{ characterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -37,9 +38,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
-    const character = await CharacterService.updateCharacter(params.characterId, {
+    const character = await CharacterService.updateCharacter(resolvedParams.characterId, {
       name: data.name,
       description: data.description,
       appearance: data.appearance,
@@ -58,7 +60,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { characterId: string } }
+  { params }: { params: Promise<{ characterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -67,7 +69,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    await CharacterService.deleteCharacter(params.characterId)
+    const resolvedParams = await params
+    await CharacterService.deleteCharacter(resolvedParams.characterId)
     
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

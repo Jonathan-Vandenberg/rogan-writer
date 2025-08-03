@@ -115,37 +115,33 @@ function SinglePage({
     textAlign: 'left',
   }
 
-  const getPageShadow = () => {
-    return "shadow-lg"
-  }
-
   return (
     <Card 
       className={cn(
-        "relative overflow-hidden rounded-none",
-        getPageShadow(),
+        "relative overflow-hidden rounded-none shadow-lg border-none p-0",
         className
       )}
       style={pageStyle}
     >
-      {/* Invisible clickable areas for page turning */}
+      {/* Corner Navigation Buttons */}
       {onPreviousPage && (
-        <div 
-          className="absolute top-0 left-0 w-16 h-16 cursor-pointer z-10 hover:bg-black/10 hover:bg-opacity-5 transition-colors flex items-center justify-center"
+        <button
           onClick={onPreviousPage}
+          className="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white shadow-sm border border-gray-200 flex items-center justify-center transition-all hover:scale-105"
           title="Previous page"
         >
-          <ChevronLeft className="h-6 w-6 text-white drop-shadow-lg" />
-        </div>
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+        </button>
       )}
+      
       {onNextPage && (
-        <div 
-          className="absolute top-0 right-0 w-16 h-16 cursor-pointer z-10 hover:bg-black/10 hover:bg-opacity-5 transition-colors flex items-center justify-center"
+        <button
           onClick={onNextPage}
+          className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white shadow-sm border border-gray-200 flex items-center justify-center transition-all hover:scale-105"
           title="Next page"
         >
-          <ChevronRight className="h-6 w-6 text-white drop-shadow-lg" />
-        </div>
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        </button>
       )}
 
       {/* Chapter title (only on first page of chapter) */}

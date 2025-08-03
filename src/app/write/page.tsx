@@ -150,9 +150,7 @@ export default function WritePage() {
   const [localContent, setLocalContent] = React.useState("")
   const [isTextareaFocused, setIsTextareaFocused] = React.useState(false)
   const [cursorPosition, setCursorPosition] = React.useState(0)
-  const [isAutoNavigating, setIsAutoNavigating] = React.useState(false)
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
-  const autoNavigationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
   // Computed values
   const currentChapterIndex = getCurrentChapterIndex()
@@ -160,26 +158,6 @@ export default function WritePage() {
   const chapterTitle = currentChapter?.title || `Chapter ${currentChapterIndex}`
   const wordCount = currentPageData?.wordCount || 0
   
-  // Calculate page capacity warning
-  const pageCapacityWarning = React.useMemo(() => {
-    if (!currentPageData || !paginationData) return null
-    
-    // Use the actual pagination capacity (already includes safety margin)
-    const estimatedPageCapacity = currentPageIndex === 1 
-      ? (paginationData.pages[0]?.endPosition || 1000) // Don't apply additional reduction
-      : ((paginationData.pages[1]?.endPosition || 1000) - (paginationData.pages[1]?.startPosition || 0))
-    
-    const contentLength = localContent.length
-    const capacityRatio = contentLength / estimatedPageCapacity
-    
-    if (capacityRatio > 0.95) return 'danger' // Over 95% of pagination capacity
-    if (capacityRatio > 0.85) return 'warning' // Over 85% of pagination capacity  
-    return null
-  }, [localContent, currentPageData, paginationData, currentPageIndex])
-
-  // Get next page data for navigation
-  const nextPageData = (paginationData?.pages || []).find((p: any) => p.pageNumber === currentPageIndex + 1)
-
   // Load book data when selected book changes
   React.useEffect(() => {
     if (selectedBookId) {
@@ -213,110 +191,59 @@ export default function WritePage() {
     return safeChapterContent.substring(0, startPos) + newPageContent + safeChapterContent.substring(endPos)
   }, [])
 
+  // Centralized save function to prevent conflicts
+  const saveCurrentContent = React.useCallback(async (priority: 'low' | 'high' = 'low') => {
+    if (!currentChapter || !currentPageData || localContent === currentPageData.content) {
+      return true // Nothing to save
+    }
 
+    // For high priority saves, wait for current save to finish
+    if (priority === 'high' && isSaving) {
+      let attempts = 0
+      while (isSaving && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        attempts++
+      }
+    }
 
+    // Skip if already saving (for low priority saves)
+    if (isSaving) {
+      return false
+    }
 
+    setIsSaving(true)
+    try {
+      const updatedChapterContent = updateChapterContentWithPageContent(
+        currentChapter.content,
+        currentPageData.startPosition,
+        currentPageData.endPosition,
+        localContent
+      )
+      await updateChapterContent(currentChapter.id, updatedChapterContent)
+      setLastSaved(new Date())
+      return true
+    } catch (err) {
+      console.error('Save failed:', err)
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }, [currentChapter, currentPageData, localContent, updateChapterContent, updateChapterContentWithPageContent, isSaving])
 
   // Auto-save functionality (preserves user input exactly as typed)
   React.useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (currentChapter && currentPageData && localContent !== currentPageData.content && !isSaving) {
-        setIsSaving(true)
-        try {
-          // Always save content exactly as user typed it - no automatic truncation
-          const updatedChapterContent = updateChapterContentWithPageContent(
-            currentChapter.content,
-            currentPageData.startPosition,
-            currentPageData.endPosition,
-            localContent
-          )
-          await updateChapterContent(currentChapter.id, updatedChapterContent)
-          setLastSaved(new Date())
-        } catch (err) {
-          console.error('Auto-save failed:', err)
-        } finally {
-          setIsSaving(false)
-        }
-      }
-    }, 2000) // Auto-save after 2 seconds of inactivity
+    const timer = setTimeout(() => {
+      saveCurrentContent('low') // Use centralized save function
+    }, 3000) // Auto-save after 3 seconds of inactivity
 
     return () => clearTimeout(timer)
-  }, [localContent, currentChapter, currentPageData, updateChapterContent, updateChapterContentWithPageContent, isSaving])
+  }, [localContent, saveCurrentContent])
 
-
-
-  // Handle page content changes with auto page navigation
+  // Handle page content changes - NO auto-navigation, just save content
   const handleContentChange = (content: string) => {
     setLocalContent(content)
-    checkAndNavigateToCorrectPage(content)
+    // Removed checkAndNavigateToCorrectPage - let users type freely!
   }
-
-  // Check if we need to auto-navigate when typing past current page boundary
-  const checkAndNavigateToCorrectPage = React.useCallback((content: string) => {
-    if (!currentPageData || !paginationData || !currentChapter || !textareaRef.current || isAutoNavigating || isSaving) return
-
-    // Clear existing timeout
-    if (autoNavigationTimeoutRef.current) {
-      clearTimeout(autoNavigationTimeoutRef.current)
-    }
-
-    // Debounce the check to avoid rapid navigation
-    autoNavigationTimeoutRef.current = setTimeout(async () => {
-      const currentPageStart = currentPageData.startPosition
-      const currentPageEnd = currentPageData.endPosition
-      const cursorPosition = textareaRef.current?.selectionStart || 0
-      
-      // Calculate absolute cursor position in the full chapter
-      const absoluteCursorPosition = currentPageStart + cursorPosition
-      
-      // Check if cursor is beyond the current page boundary
-      if (absoluteCursorPosition > currentPageEnd && cursorPosition >= content.length - 1) {
-        setIsAutoNavigating(true)
-        
-        try {
-          // Save current content first
-          const updatedChapterContent = updateChapterContentWithPageContent(
-            currentChapter.content,
-            currentPageStart,
-            currentPageEnd,
-            content
-          )
-          
-          await updateChapterContent(currentChapter.id, updatedChapterContent)
-          
-          // Wait a bit for pagination to recalculate
-          await new Promise(resolve => setTimeout(resolve, 300))
-          
-          // Find which page the cursor should be on after content update
-          const newPageIndex = paginationData.pages.findIndex(page => 
-            absoluteCursorPosition >= page.startPosition && absoluteCursorPosition <= page.endPosition
-          )
-          
-          if (newPageIndex >= 0 && newPageIndex + 1 !== currentPageIndex) {
-            // Navigate to the correct page
-            setCurrentPage(newPageIndex + 1)
-            
-            // Position cursor correctly on new page
-            setTimeout(() => {
-              if (textareaRef.current) {
-                const targetPage = paginationData.pages[newPageIndex]
-                const cursorOnNewPage = absoluteCursorPosition - targetPage.startPosition
-                textareaRef.current.focus()
-                textareaRef.current.setSelectionRange(cursorOnNewPage, cursorOnNewPage)
-              }
-              setIsAutoNavigating(false)
-            }, 200)
-          } else {
-            setIsAutoNavigating(false)
-          }
-          
-        } catch (err) {
-          console.error('Auto-navigation failed:', err)
-          setIsAutoNavigating(false)
-        }
-      }
-    }, 300)
-  }, [currentPageData, paginationData, currentChapter, currentPageIndex, updateChapterContent, updateChapterContentWithPageContent, setCurrentPage, isAutoNavigating, isSaving])
 
   // Handle speech-to-text insertion
   const handleSpeechToTextInsertion = React.useCallback((text: string) => {
@@ -367,47 +294,14 @@ export default function WritePage() {
       return
     }
 
-    // Save current content before switching pages
-    if (currentChapter && currentPageData && localContent !== currentPageData.content && !isSaving) {
-      setIsSaving(true)
-      try {
-        const updatedChapterContent = updateChapterContentWithPageContent(
-          currentChapter.content,
-          currentPageData.startPosition,
-          currentPageData.endPosition,
-          localContent
-        )
-        await updateChapterContent(currentChapter.id, updatedChapterContent)
-        setLastSaved(new Date())
-      } catch (err) {
-        console.error('Failed to save before page switch:', err)
-      } finally {
-        setIsSaving(false)
-      }
-    }
-
+    // Save current content before switching pages using centralized function
+    await saveCurrentContent('high')
     setCurrentPage(pageIndex)
   }
 
   const handleChapterChange = async (chapterIndex: number) => {
-    // Save current content before switching chapters
-    if (currentChapter && currentPageData && localContent !== currentPageData.content && !isSaving) {
-      setIsSaving(true)
-      try {
-        const updatedChapterContent = updateChapterContentWithPageContent(
-          currentChapter.content,
-          currentPageData.startPosition,
-          currentPageData.endPosition,
-          localContent
-        )
-        await updateChapterContent(currentChapter.id, updatedChapterContent)
-        setLastSaved(new Date())
-      } catch (err) {
-        console.error('Failed to save before chapter switch:', err)
-      } finally {
-        setIsSaving(false)
-      }
-    }
+    // Save current content before switching chapters using centralized function
+    await saveCurrentContent('high')
 
     if (book && book.chapters[chapterIndex - 1]) {
       setCurrentChapter(book.chapters[chapterIndex - 1].id)
@@ -459,38 +353,13 @@ export default function WritePage() {
 
   // Save manually
   const handleSave = async () => {
-    if (currentChapter && currentPageData && localContent !== currentPageData.content && !isSaving) {
-      setIsSaving(true)
-      try {
-        const updatedChapterContent = updateChapterContentWithPageContent(
-          currentChapter.content,
-          currentPageData.startPosition,
-          currentPageData.endPosition,
-          localContent
-        )
-        await updateChapterContent(currentChapter.id, updatedChapterContent)
-        setLastSaved(new Date())
-      } catch (err) {
-        console.error('Manual save failed:', err)
-      } finally {
-        setIsSaving(false)
-      }
-    }
+    await saveCurrentContent('high')
   }
 
   // Toggle fullscreen
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen)
   }
-
-  // Cleanup timeouts on unmount
-  React.useEffect(() => {
-    return () => {
-      if (autoNavigationTimeoutRef.current) {
-        clearTimeout(autoNavigationTimeoutRef.current)
-      }
-    }
-  }, [])
 
   // Loading state
   if (isLoading) {
@@ -572,12 +441,6 @@ export default function WritePage() {
                   Saving...
                 </Badge>
               )}
-              {isAutoNavigating && (
-                <Badge variant="outline" className="gap-1">
-                  <Target className="h-3 w-3 animate-pulse" />
-                  Moving to next page...
-                </Badge>
-              )}
             </div>
           </div>
 
@@ -610,12 +473,12 @@ export default function WritePage() {
 
       {/* Main Content */}
       <div className={cn(
-        "flex gap-6 p-6",
-        isFullscreen && "justify-center items-center min-h-screen p-12"
+        "flex gap-6",
+        isFullscreen && "justify-center items-center min-h-screen p-8"
       )}>
         {/* Sidebar Controls */}
         {!isFullscreen && (
-          <div className="w-88 space-y-6">
+          <div className="w-88 space-y-6 p-6">
             {/* Page Navigation */}
             <PageNavigation
               currentPage={currentPageIndex}
@@ -663,7 +526,7 @@ export default function WritePage() {
         )}
 
         {/* Book Page */}
-        <div className="flex-1 flex flex-col items-center">
+        <div className="flex-1 flex flex-col items-center pt-6">
           <BookPage
             content={localContent}
             pageNumber={currentPageIndex}

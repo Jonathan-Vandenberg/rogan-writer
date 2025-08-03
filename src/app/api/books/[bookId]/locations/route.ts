@@ -4,7 +4,7 @@ import { LocationService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -25,7 +25,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()

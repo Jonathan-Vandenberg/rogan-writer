@@ -4,7 +4,7 @@ import { TimelineEventService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string; eventId: string } }
+  { params }: { params: Promise<{ bookId: string; eventId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,9 +13,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Get all timeline events and find the specific one (includes ownership validation via bookId)
-    const events = await TimelineEventService.getTimelineEventsByBookId(params.bookId)
-    const event = events.find(e => e.id === params.eventId)
+    const events = await TimelineEventService.getTimelineEventsByBookId(resolvedParams.bookId)
+    const event = events.find(e => e.id === resolvedParams.eventId)
     
     if (!event) {
       return NextResponse.json({ error: 'Timeline event not found' }, { status: 404 })
@@ -30,7 +32,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { bookId: string; eventId: string } }
+  { params }: { params: Promise<{ bookId: string; eventId: string }> }
 ) {
   try {
     const session = await auth()
@@ -39,9 +41,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify timeline event belongs to this book first
-    const events = await TimelineEventService.getTimelineEventsByBookId(params.bookId)
-    const existingEvent = events.find(e => e.id === params.eventId)
+    const events = await TimelineEventService.getTimelineEventsByBookId(resolvedParams.bookId)
+    const existingEvent = events.find(e => e.id === resolvedParams.eventId)
     
     if (!existingEvent) {
       return NextResponse.json({ error: 'Timeline event not found' }, { status: 404 })
@@ -96,7 +100,7 @@ export async function PUT(
       updateData.orderIndex = orderIndex
     }
 
-    const updatedEvent = await TimelineEventService.updateTimelineEvent(params.eventId, updateData)
+    const updatedEvent = await TimelineEventService.updateTimelineEvent(resolvedParams.eventId, updateData)
     
     return NextResponse.json(updatedEvent)
   } catch (error) {
@@ -107,7 +111,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { bookId: string; eventId: string } }
+  { params }: { params: Promise<{ bookId: string; eventId: string }> }
 ) {
   try {
     const session = await auth()
@@ -116,15 +120,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify timeline event belongs to this book first
-    const events = await TimelineEventService.getTimelineEventsByBookId(params.bookId)
-    const existingEvent = events.find(e => e.id === params.eventId)
+    const events = await TimelineEventService.getTimelineEventsByBookId(resolvedParams.bookId)
+    const existingEvent = events.find(e => e.id === resolvedParams.eventId)
     
     if (!existingEvent) {
       return NextResponse.json({ error: 'Timeline event not found' }, { status: 404 })
     }
 
-    await TimelineEventService.deleteTimelineEvent(params.eventId)
+    await TimelineEventService.deleteTimelineEvent(resolvedParams.eventId)
     
     return NextResponse.json({ success: true })
   } catch (error) {

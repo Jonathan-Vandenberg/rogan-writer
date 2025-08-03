@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MapPin, Plus, Edit, Trash2, Search, Calendar, Users } from 'lucide-react'
+import { MapPin, Plus, Edit, Trash2, Search, Calendar} from 'lucide-react'
 import { useSelectedBook } from '@/contexts/selected-book-context'
 import type { Location } from '@prisma/client'
 
@@ -179,14 +178,19 @@ export function LocationsView({ className }: LocationsViewProps) {
 
   return (
     <div className={className}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-4">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Locations</h2>
-            <p className="text-muted-foreground">
-              Manage the places and settings in your story
-            </p>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+            <MapPin className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+            Locations
+          </h1>
+            <div className="flex items-center mt-2">
+              <Badge variant="outline">
+                {locations.length} Location{locations.length !== 1 ? 's' : ''}
+              </Badge>
+          </div>
           </div>
           <Button 
             onClick={() => {

@@ -78,7 +78,7 @@ export class WritingSessionService {
 
     // Count consecutive days with writing
     const sortedDays = Array.from(days.keys()).sort().reverse()
-    let currentDate = new Date()
+    const currentDate = new Date()
     
     for (let i = 0; i < sortedDays.length; i++) {
       const dayKey = currentDate.toISOString().split('T')[0]

@@ -4,7 +4,7 @@ import { CommentService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { pageId: string } }
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const comments = await CommentService.getCommentsByPageId(params.pageId)
+    const resolvedParams = await params
+    const comments = await CommentService.getCommentsByPageId(resolvedParams.pageId)
     
     return NextResponse.json(comments)
   } catch (error) {
@@ -24,7 +25,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { pageId: string } }
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
     const session = await auth()
@@ -33,12 +34,13 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
     const comment = await CommentService.createPageComment({
       content: data.content,
       collaboratorId: data.collaboratorId,
-      pageId: params.pageId
+      pageId: resolvedParams.pageId
     })
     
     return NextResponse.json(comment, { status: 201 })

@@ -40,13 +40,13 @@ export async function GET() {
         editing: books.filter(b => b.status === 'EDITING').length
       },
       writing: {
-        totalWords: bookStats?.totalWords || 0,
+        totalWords: bookStats?.stats?.totalWords || 0,
         streak: writingStats.streak,
         todayWords: writingStats.todayWords,
         weekWords: writingStats.weekWords
       },
       characters: {
-        total: bookStats?.totalCharacters || 0
+        total: bookStats?.stats?.totalCharacters || 0
       },
       plot: plotProgress || {
         totalPoints: 0,

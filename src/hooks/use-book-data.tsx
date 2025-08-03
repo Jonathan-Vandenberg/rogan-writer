@@ -204,8 +204,8 @@ export function useBookData(typographySettings?: TypographySettings): UseBookDat
       // Build content line by line until we reach the line limit
       while (endPos < chapterContent.length && linesUsed < maxLinesForPage) {
         // Find the next word boundary
-        let nextSpace = chapterContent.indexOf(' ', endPos)
-        let nextNewline = chapterContent.indexOf('\n', endPos)
+        const nextSpace = chapterContent.indexOf(' ', endPos)
+        const nextNewline = chapterContent.indexOf('\n', endPos)
         
         // Find the nearest boundary
         let nextBoundary = chapterContent.length

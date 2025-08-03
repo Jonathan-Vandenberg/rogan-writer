@@ -156,7 +156,7 @@ export default function ReadBookPage() {
     // Split by words while keeping track of original positions
     const words = []
     const wordPositions = []
-    let currentPos = 0
+    const currentPos = 0
     
     // Use a more sophisticated split that preserves structure
     const parts = originalContent.split(/(\s+)/)

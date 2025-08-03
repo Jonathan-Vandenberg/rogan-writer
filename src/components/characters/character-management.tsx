@@ -494,7 +494,7 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="name">Name *</Label>
           <Input
             id="name"
@@ -505,7 +505,7 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
           />
         </div>
         
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="role">Role</Label>
           <Select 
             value={formData.role} 
@@ -525,7 +525,7 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
         </div>
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
         <Textarea
           id="description"
@@ -536,7 +536,7 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="appearance">Appearance</Label>
         <Textarea
           id="appearance"
@@ -547,7 +547,7 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="personality">Personality</Label>
         <Textarea
           id="personality"
@@ -558,7 +558,7 @@ function CharacterForm({ formData, setFormData, onSubmit, submitLabel }: Charact
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="backstory">Backstory</Label>
         <Textarea
           id="backstory"

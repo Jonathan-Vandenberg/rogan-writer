@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Rogan Writer - Professional Book Writing App",
+  title: "little brother - Professional Book Writing App",
   description: "A comprehensive book writing application with AI assistance, plot tracking, and collaborative features.",
 }
 

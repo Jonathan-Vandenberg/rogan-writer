@@ -4,7 +4,7 @@ import { TimelineEventService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -25,7 +25,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -34,6 +34,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     console.log('Received timeline event data:', data)
     
@@ -60,7 +61,7 @@ export async function POST(
       eventDate: data.eventDate?.trim() || null,
       startTime: parseInt(data.startTime),
       endTime: parseInt(data.endTime),
-      bookId: params.bookId,
+      bookId: resolvedParams.bookId,
       characterId: data.characterId || null,
       locationId: data.locationId || null
     })

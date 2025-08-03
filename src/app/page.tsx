@@ -4,6 +4,8 @@ import * as React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { CreateBookDialog } from "@/components/ui/create-book-dialog"
+import { useSelectedBook } from "@/contexts/selected-book-context"
 import { BookOpen, PenTool, Users, BarChart3, Target, Lightbulb, Clock, FileText } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -54,35 +56,43 @@ interface Book {
 }
 
 export default function DashboardPage() {
+  const { setSelectedBookId } = useSelectedBook()
   const [dashboardData, setDashboardData] = React.useState<DashboardData | null>(null)
   const [books, setBooks] = React.useState<Book[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [showCreateDialog, setShowCreateDialog] = React.useState(false)
+
+  const fetchData = React.useCallback(async () => {
+    try {
+      // Fetch dashboard data
+      const dashboardResponse = await fetch('/api/dashboard')
+      if (dashboardResponse.ok) {
+        const data = await dashboardResponse.json()
+        setDashboardData(data)
+      }
+
+      // Fetch user's books
+      const booksResponse = await fetch('/api/books')
+      if (booksResponse.ok) {
+        const booksData = await booksResponse.json()
+        setBooks(booksData || [])
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   React.useEffect(() => {
-    async function fetchData() {
-      try {
-        // Fetch dashboard data
-        const dashboardResponse = await fetch('/api/dashboard')
-        if (dashboardResponse.ok) {
-          const data = await dashboardResponse.json()
-          setDashboardData(data)
-        }
-
-        // Fetch user's books
-        const booksResponse = await fetch('/api/books')
-        if (booksResponse.ok) {
-          const booksData = await booksResponse.json()
-          setBooks(booksData || [])
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
-  }, [])
+  }, [fetchData])
+
+  const handleBookCreated = React.useCallback((newBook: Book) => {
+    setShowCreateDialog(false)
+    setSelectedBookId(newBook.id) // Set the newly created book as selected
+    fetchData() // Refresh the data after creating a book
+  }, [setSelectedBookId, fetchData])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -125,152 +135,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back to your writing workspace
-        </p>
-      </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Books</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardData.books.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {dashboardData.books.active} in progress, {dashboardData.books.editing} editing
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Characters</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardData.characters.total}</div>
-              <p className="text-xs text-muted-foreground">
-                Across all books
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Writing Streak</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardData.writing.streak} days</div>
-              <p className="text-xs text-muted-foreground">
-                {dashboardData.writing.streak > 0 ? 'Keep it up!' : 'Start your streak!'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PenTool className="h-5 w-5" />
-                Quick Actions
-              </CardTitle>
-              <CardDescription>
-                Jump into your writing flow
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/write">
-                <Button className="w-full" variant="default">
-                  Continue Writing
-                </Button>
-              </Link>
-              <Link href="/chapters">
-                <Button className="w-full" variant="outline">
-                  Manage Chapters
-                </Button>
-              </Link>
-              <Link href="/characters">
-                <Button className="w-full" variant="outline">
-                  Add New Character
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Plot Progress
-              </CardTitle>
-              <CardDescription>
-                Track your story structure
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {dashboardData.plot.plotStatus.length > 0 ? (
-                  dashboardData.plot.plotStatus.slice(0, 4).map((point, index) => (
-                    <div key={index} className="flex justify-between text-sm">
-                      <span>{point.title}</span>
-                      <span className={point.completed ? "text-green-600" : "text-gray-400"}>
-                        {point.completed ? "✓" : "Pending"}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No plot points yet</p>
-                )}
-                {dashboardData.plot.totalPoints > 0 && (
-                  <div className="mt-2 pt-2 border-t">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Progress</span>
-                      <span>{dashboardData.plot.progressPercent}%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5" />
-                Recent Ideas
-              </CardTitle>
-              <CardDescription>
-                Your latest brainstorming notes
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                {dashboardData.recentNotes.length > 0 ? (
-                  dashboardData.recentNotes.map((note, index) => {
-                    const colors = ['blue', 'green', 'purple', 'orange', 'pink']
-                    const color = colors[index % colors.length]
-                    const timeAgo = new Date(note.createdAt).toLocaleDateString()
-                    
-                    return (
-                      <div key={note.id} className={`border-l-2 border-${color}-500 pl-2`}>
-                        <p className="font-medium">{note.title}</p>
-                        <p className="text-muted-foreground text-xs">{timeAgo}</p>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground">No ideas yet. Start brainstorming!</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+    <div className="space-y-6 p-6">
         {/* Book Library Section */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -320,12 +185,16 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground mb-4">
                   Create your first book to start your writing journey
                 </p>
-                <Link href="/books">
-                  <Button>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Create First Book
-                  </Button>
-                </Link>
+                <Button onClick={() => setShowCreateDialog(true)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create First Book
+                </Button>
+                
+                <CreateBookDialog
+                  open={showCreateDialog}
+                  onOpenChange={setShowCreateDialog}
+                  onBookCreated={handleBookCreated}
+                />
               </CardContent>
             </Card>
           )}

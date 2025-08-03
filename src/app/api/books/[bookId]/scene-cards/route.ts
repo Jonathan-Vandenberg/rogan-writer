@@ -4,7 +4,7 @@ import { SceneCardService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const sceneCards = await SceneCardService.getSceneCardsByBookId(params.bookId)
+    const resolvedParams = await params
+    const sceneCards = await SceneCardService.getSceneCardsByBookId(resolvedParams.bookId)
     
     return NextResponse.json(sceneCards)
   } catch (error) {
@@ -24,7 +25,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -33,6 +34,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
     const sceneCard = await SceneCardService.createSceneCard({
@@ -41,7 +43,7 @@ export async function POST(
       purpose: data.purpose,
       conflict: data.conflict,
       outcome: data.outcome,
-      bookId: params.bookId,
+      bookId: resolvedParams.bookId,
       chapterId: data.chapterId
     })
     

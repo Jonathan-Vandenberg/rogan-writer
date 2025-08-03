@@ -4,7 +4,7 @@ import { ChapterService, PageService, BookService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,8 +13,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // In the new system, pages are calculated dynamically from chapter content
-    const chapter = await ChapterService.getChapterById(params.chapterId)
+    const chapter = await ChapterService.getChapterById(resolvedParams.chapterId)
     
     if (!chapter) {
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 })
@@ -50,7 +52,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
   try {
     const session = await auth()
@@ -58,6 +60,8 @@ export async function POST(
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const resolvedParams = await params
 
     // In the new system, we don't really "create" individual pages
     // Pages are calculated dynamically from chapter content
@@ -67,13 +71,13 @@ export async function POST(
     
     if (data.content) {
       // If content is provided, append it to the chapter
-      const chapter = await ChapterService.getChapterById(params.chapterId)
+      const chapter = await ChapterService.getChapterById(resolvedParams.chapterId)
       if (!chapter) {
         return NextResponse.json({ error: 'Chapter not found' }, { status: 404 })
       }
 
       const updatedContent = chapter.content + (chapter.content ? '\n\n' : '') + data.content
-      await ChapterService.updateChapterContent(params.chapterId, updatedContent)
+      await ChapterService.updateChapterContent(resolvedParams.chapterId, updatedContent)
       
       return NextResponse.json({ 
         message: 'Content added to chapter',
@@ -83,7 +87,7 @@ export async function POST(
     
     // Create a metadata page entry (though this isn't really needed in the new system)
     const page = await PageService.createPage({
-      chapterId: params.chapterId
+      chapterId: resolvedParams.chapterId
     })
     
     return NextResponse.json(page, { status: 201 })

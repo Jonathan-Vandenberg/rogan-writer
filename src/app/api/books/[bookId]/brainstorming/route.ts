@@ -4,7 +4,7 @@ import { BrainstormingService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,14 +13,15 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const url = new URL(request.url)
     const query = url.searchParams.get('search')
 
     let notes
     if (query) {
-      notes = await BrainstormingService.searchNotes(params.bookId, query)
+      notes = await BrainstormingService.searchNotes(resolvedParams.bookId, query)
     } else {
-      notes = await BrainstormingService.getNotesByBookId(params.bookId)
+      notes = await BrainstormingService.getNotesByBookId(resolvedParams.bookId)
     }
     
     return NextResponse.json(notes)
@@ -32,7 +33,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -41,6 +42,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const body = await request.json()
     const { title, content, tags } = body
 
@@ -55,7 +57,7 @@ export async function POST(
       title: title.trim(),
       content: content.trim(),
       tags: tags || [],
-      bookId: params.bookId
+      bookId: resolvedParams.bookId
     })
     
     return NextResponse.json(note)

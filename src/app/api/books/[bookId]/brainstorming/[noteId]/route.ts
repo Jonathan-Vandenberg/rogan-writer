@@ -4,7 +4,7 @@ import { BrainstormingService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string; noteId: string } }
+  { params }: { params: Promise<{ bookId: string; noteId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,9 +13,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+    
     // Get all notes and find the specific one (includes ownership validation via bookId)
-    const notes = await BrainstormingService.getNotesByBookId(params.bookId)
-    const note = notes.find(n => n.id === params.noteId)
+    const notes = await BrainstormingService.getNotesByBookId(resolvedParams.bookId)
+    const note = notes.find(n => n.id === resolvedParams.noteId)
     
     if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 })
@@ -30,7 +32,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { bookId: string; noteId: string } }
+  { params }: { params: Promise<{ bookId: string; noteId: string }> }
 ) {
   try {
     const session = await auth()
@@ -39,9 +41,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify note belongs to this book first
-    const notes = await BrainstormingService.getNotesByBookId(params.bookId)
-    const existingNote = notes.find(n => n.id === params.noteId)
+    const notes = await BrainstormingService.getNotesByBookId(resolvedParams.bookId)
+    const existingNote = notes.find(n => n.id === resolvedParams.noteId)
     
     if (!existingNote) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 })
@@ -70,7 +74,7 @@ export async function PUT(
       updateData.tags = tags
     }
 
-    const updatedNote = await BrainstormingService.updateNote(params.noteId, updateData)
+    const updatedNote = await BrainstormingService.updateNote(resolvedParams.noteId, updateData)
     
     return NextResponse.json(updatedNote)
   } catch (error) {
@@ -81,7 +85,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { bookId: string; noteId: string } }
+  { params }: { params: Promise<{ bookId: string; noteId: string }> }
 ) {
   try {
     const session = await auth()
@@ -90,15 +94,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify note belongs to this book first
-    const notes = await BrainstormingService.getNotesByBookId(params.bookId)
-    const existingNote = notes.find(n => n.id === params.noteId)
+    const notes = await BrainstormingService.getNotesByBookId(resolvedParams.bookId)
+    const existingNote = notes.find(n => n.id === resolvedParams.noteId)
     
     if (!existingNote) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 })
     }
 
-    await BrainstormingService.deleteNote(params.noteId)
+    await BrainstormingService.deleteNote(resolvedParams.noteId)
     
     return NextResponse.json({ success: true })
   } catch (error) {

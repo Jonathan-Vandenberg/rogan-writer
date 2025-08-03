@@ -300,7 +300,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="subplot-name">Subplot Name</Label>
                 <Input
                   id="subplot-name"

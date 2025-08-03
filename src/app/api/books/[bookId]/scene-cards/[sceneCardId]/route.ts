@@ -4,7 +4,7 @@ import { SceneCardService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string; sceneCardId: string } }
+  { params }: { params: Promise<{ bookId: string; sceneCardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,9 +13,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Get all scene cards and find the specific one (includes ownership validation via bookId)
-    const sceneCards = await SceneCardService.getSceneCardsByBookId(params.bookId)
-    const sceneCard = sceneCards.find(s => s.id === params.sceneCardId)
+    const sceneCards = await SceneCardService.getSceneCardsByBookId(resolvedParams.bookId)
+    const sceneCard = sceneCards.find(s => s.id === resolvedParams.sceneCardId)
     
     if (!sceneCard) {
       return NextResponse.json({ error: 'Scene card not found' }, { status: 404 })
@@ -30,7 +32,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { bookId: string; sceneCardId: string } }
+  { params }: { params: Promise<{ bookId: string; sceneCardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -39,9 +41,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify scene card belongs to this book first
-    const sceneCards = await SceneCardService.getSceneCardsByBookId(params.bookId)
-    const existingCard = sceneCards.find(s => s.id === params.sceneCardId)
+    const sceneCards = await SceneCardService.getSceneCardsByBookId(resolvedParams.bookId)
+    const existingCard = sceneCards.find(s => s.id === resolvedParams.sceneCardId)
     
     if (!existingCard) {
       return NextResponse.json({ error: 'Scene card not found' }, { status: 404 })
@@ -101,7 +105,7 @@ export async function PUT(
       updateData.wordCount = wordCount
     }
 
-    const updatedCard = await SceneCardService.updateSceneCard(params.sceneCardId, updateData)
+    const updatedCard = await SceneCardService.updateSceneCard(resolvedParams.sceneCardId, updateData)
     
     return NextResponse.json(updatedCard)
   } catch (error) {
@@ -112,7 +116,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { bookId: string; sceneCardId: string } }
+  { params }: { params: Promise<{ bookId: string; sceneCardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -121,15 +125,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify scene card belongs to this book first
-    const sceneCards = await SceneCardService.getSceneCardsByBookId(params.bookId)
-    const existingCard = sceneCards.find(s => s.id === params.sceneCardId)
+    const sceneCards = await SceneCardService.getSceneCardsByBookId(resolvedParams.bookId)
+    const existingCard = sceneCards.find(s => s.id === resolvedParams.sceneCardId)
     
     if (!existingCard) {
       return NextResponse.json({ error: 'Scene card not found' }, { status: 404 })
     }
 
-    await SceneCardService.deleteSceneCard(params.sceneCardId)
+    await SceneCardService.deleteSceneCard(resolvedParams.sceneCardId)
     
     return NextResponse.json({ success: true })
   } catch (error) {

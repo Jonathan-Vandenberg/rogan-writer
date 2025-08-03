@@ -73,7 +73,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
           <BookOpen className="h-6 w-6" />
-          <span className="font-semibold">Rogan Writer</span>
+          <span className="font-semibold font-SFMono-Regular"></span>
         </div>
       </SidebarHeader>
       
@@ -112,15 +112,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-1">
-            <ThemeToggle />
             <MoodOverlay />
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/settings">
-              <Settings className="h-4 w-4" />
-              <span className="sr-only">Settings</span>
-            </Link>
-          </Button>
         </div>
       </SidebarFooter>
       

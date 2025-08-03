@@ -4,7 +4,7 @@ import { CharacterService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -25,7 +25,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -34,6 +34,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
     const character = await CharacterService.createCharacter({
@@ -44,7 +45,7 @@ export async function POST(
       backstory: data.backstory,
       role: data.role,
       imageUrl: data.imageUrl,
-      bookId: params.bookId
+      bookId: resolvedParams.bookId
     })
     
     return NextResponse.json(character, { status: 201 })

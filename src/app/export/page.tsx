@@ -235,11 +235,11 @@ export default function ExportPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Export</h1>
         <p className="text-muted-foreground">
-          Export your book in multiple formats for publishing and sharing
+          Export your book
         </p>
       </div>
 
@@ -260,7 +260,7 @@ export default function ExportPage() {
           <CardHeader>
             <CardTitle>Export Formats</CardTitle>
             <CardDescription>
-              Choose from multiple formats optimized for different purposes
+              Select a format to export your book
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -275,7 +275,7 @@ export default function ExportPage() {
                   <FileText className="h-6 w-6 text-red-500" />
                   <div className="text-left">
                     <div className="font-medium">PDF</div>
-                    <div className="text-sm text-muted-foreground">Perfect for print and digital distribution</div>
+                    <div className="text-sm text-muted-foreground">PDF format</div>
                   </div>
                 </div>
               </Button>
@@ -350,7 +350,6 @@ export default function ExportPage() {
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>No exports yet</p>
-              <p className="text-sm">Create your first export using the buttons above</p>
             </div>
           )}
         </CardContent>

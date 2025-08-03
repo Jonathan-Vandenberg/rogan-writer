@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db'
 import type { Book, Prisma } from '@prisma/client'
 
-type BookWithDetails = Book & {
+export type BookWithDetails = Book & {
   author: { name: string | null; email: string } | null
   chapters: Array<{
     id: string

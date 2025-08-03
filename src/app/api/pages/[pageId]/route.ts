@@ -4,7 +4,7 @@ import { PageService, ChapterService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { pageId: string } }
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const pageStats = await PageService.getPageStats(params.pageId)
+    const resolvedParams = await params
+    const pageStats = await PageService.getPageStats(resolvedParams.pageId)
     
     if (!pageStats) {
       return NextResponse.json({ error: 'Page not found' }, { status: 404 })
@@ -28,7 +29,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { pageId: string } }
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
     const session = await auth()
@@ -37,13 +38,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
     // In the new system, we update the chapter content instead of individual pages
     // This route is mainly for backward compatibility or metadata updates
     if (data.content) {
       // Get the page to find which chapter it belongs to
-      const page = await PageService.getPageById(params.pageId)
+      const page = await PageService.getPageById(resolvedParams.pageId)
       if (!page) {
         return NextResponse.json({ error: 'Page not found' }, { status: 404 })
       }
@@ -70,7 +72,7 @@ export async function PUT(
     }
     
     // For other metadata updates
-    const page = await PageService.updatePage(params.pageId, {
+    const page = await PageService.updatePage(resolvedParams.pageId, {
       startPosition: data.startPosition,
       endPosition: data.endPosition,
       wordCount: data.wordCount
@@ -85,7 +87,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { pageId: string } }
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
     const session = await auth()
@@ -94,7 +96,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    await PageService.deletePage(params.pageId)
+    const resolvedParams = await params
+    await PageService.deletePage(resolvedParams.pageId)
     
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

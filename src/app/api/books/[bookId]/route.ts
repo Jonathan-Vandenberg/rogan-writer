@@ -4,7 +4,7 @@ import { BookService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -29,7 +29,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -38,9 +38,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const data = await request.json()
     
-    const book = await BookService.updateBook(params.bookId, {
+    const book = await BookService.updateBook(resolvedParams.bookId, {
       title: data.title,
       description: data.description,
       genre: data.genre,
@@ -67,7 +68,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { bookId: string } }
+  { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
     const session = await auth()
@@ -76,7 +77,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    await BookService.deleteBook(params.bookId)
+    const resolvedParams = await params
+    await BookService.deleteBook(resolvedParams.bookId)
     
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

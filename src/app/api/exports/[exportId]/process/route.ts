@@ -9,7 +9,7 @@ import puppeteer from 'puppeteer'
 
 export async function POST(
   request: Request,
-  { params }: { params: { exportId: string } }
+  { params }: { params: Promise<{ exportId: string }> }
 ) {
   try {
     const session = await auth()
@@ -41,7 +41,7 @@ export async function POST(
     }
 
     try {
-      let fileName = exportRequest.fileName
+      const fileName = exportRequest.fileName
       let fileBuffer: Buffer | string
 
       // Generate content based on format

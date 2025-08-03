@@ -4,7 +4,7 @@ import { PlotService } from '@/services'
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string; plotPointId: string } }
+  { params }: { params: Promise<{ bookId: string; plotPointId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,9 +13,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Get all plot points and find the specific one (includes ownership validation via bookId)
-    const plotPoints = await PlotService.getPlotPointsByBookId(params.bookId)
-    const plotPoint = plotPoints.find(p => p.id === params.plotPointId)
+    const plotPoints = await PlotService.getPlotPointsByBookId(resolvedParams.bookId)
+    const plotPoint = plotPoints.find(p => p.id === resolvedParams.plotPointId)
     
     if (!plotPoint) {
       return NextResponse.json({ error: 'Plot point not found' }, { status: 404 })
@@ -30,7 +32,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { bookId: string; plotPointId: string } }
+  { params }: { params: Promise<{ bookId: string; plotPointId: string }> }
 ) {
   try {
     const session = await auth()
@@ -39,9 +41,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify plot point belongs to this book first
-    const plotPoints = await PlotService.getPlotPointsByBookId(params.bookId)
-    const existingPlotPoint = plotPoints.find(p => p.id === params.plotPointId)
+    const plotPoints = await PlotService.getPlotPointsByBookId(resolvedParams.bookId)
+    const existingPlotPoint = plotPoints.find(p => p.id === resolvedParams.plotPointId)
     
     if (!existingPlotPoint) {
       return NextResponse.json({ error: 'Plot point not found' }, { status: 404 })
@@ -75,7 +79,7 @@ export async function PUT(
       updateData.chapterId = chapterId || null
     }
 
-    const updatedPlotPoint = await PlotService.updatePlotPoint(params.plotPointId, updateData)
+    const updatedPlotPoint = await PlotService.updatePlotPoint(resolvedParams.plotPointId, updateData)
     
     return NextResponse.json(updatedPlotPoint)
   } catch (error) {
@@ -86,7 +90,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { bookId: string; plotPointId: string } }
+  { params }: { params: Promise<{ bookId: string; plotPointId: string }> }
 ) {
   try {
     const session = await auth()
@@ -95,16 +99,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
+
     // Verify plot point belongs to this book first
-    const plotPoints = await PlotService.getPlotPointsByBookId(params.bookId)
-    const existingPlotPoint = plotPoints.find(p => p.id === params.plotPointId)
+    const plotPoints = await PlotService.getPlotPointsByBookId(resolvedParams.bookId)
+    const existingPlotPoint = plotPoints.find(p => p.id === resolvedParams.plotPointId)
     
     if (!existingPlotPoint) {
       return NextResponse.json({ error: 'Plot point not found' }, { status: 404 })
     }
 
     // Add delete method to PlotService if it doesn't exist
-    await PlotService.deletePlotPoint(params.plotPointId)
+    await PlotService.deletePlotPoint(resolvedParams.plotPointId)
     
     return NextResponse.json({ success: true })
   } catch (error) {

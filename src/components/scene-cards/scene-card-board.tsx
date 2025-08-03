@@ -478,7 +478,7 @@ function SceneCardForm({ formData, setFormData, chapters, onSubmit, submitLabel 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="title">Scene Title *</Label>
           <Input
             id="title"
@@ -489,7 +489,7 @@ function SceneCardForm({ formData, setFormData, chapters, onSubmit, submitLabel 
           />
         </div>
         
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="chapter">Chapter (optional)</Label>
           <Select 
             value={formData.chapterId} 
@@ -510,7 +510,7 @@ function SceneCardForm({ formData, setFormData, chapters, onSubmit, submitLabel 
         </div>
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
         <Textarea
           id="description"
@@ -521,7 +521,7 @@ function SceneCardForm({ formData, setFormData, chapters, onSubmit, submitLabel 
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="purpose">Purpose</Label>
         <Textarea
           id="purpose"
@@ -532,7 +532,7 @@ function SceneCardForm({ formData, setFormData, chapters, onSubmit, submitLabel 
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="conflict">Conflict</Label>
         <Textarea
           id="conflict"
@@ -543,7 +543,7 @@ function SceneCardForm({ formData, setFormData, chapters, onSubmit, submitLabel 
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="outcome">Outcome</Label>
         <Textarea
           id="outcome"

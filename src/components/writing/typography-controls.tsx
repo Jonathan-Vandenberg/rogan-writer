@@ -53,7 +53,7 @@ const PAGE_FORMATS = [
   { name: "Hardcover", width: 6.14, height: 9.21, description: "Premium edition" },
   { name: "Large Print", width: 8.5, height: 11, description: "Accessibility" },
   { name: "Square", width: 8, height: 8, description: "Art/Photo books" },
-  { name: "Custom", width: 0, height: 0, description: "Custom dimensions" },
+  // { name: "Custom", width: 0, height: 0, description: "Custom dimensions" },
 ]
 
 export function TypographyControls({ 
@@ -404,11 +404,11 @@ export function TypographyControls({
               </div>
             </div>
 
-            <Separator />
+            {/* <Separator /> */}
 
             {/* Speech-to-Text Settings */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              {/* <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Mic className="h-4 w-4" />
                   <Label className="text-xs font-medium">Speech-to-Text</Label>
@@ -417,12 +417,12 @@ export function TypographyControls({
                   checked={settings.speechToTextEnabled}
                   onCheckedChange={(checked) => handleSettingChange("speechToTextEnabled", checked)}
                 />
-              </div>
+              </div> */}
 
               {settings.speechToTextEnabled && (
                 <>
                   {/* Provider Selection */}
-                  <div className="space-y-2">
+                  {/* <div className="space-y-2">
                     <Label className="text-xs font-medium">Speech Recognition Provider</Label>
                     <div className="grid grid-cols-2 gap-2">
                       <Button
@@ -444,10 +444,10 @@ export function TypographyControls({
                         <div className="text-xs text-muted-foreground">High accuracy</div>
                       </Button>
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Language Selection */}
-                  <div className="space-y-2">
+                  {/* <div className="space-y-2">
                     <Label className="text-xs font-medium">Language</Label>
                     <Select
                       value={settings.speechToTextLanguage}
@@ -472,22 +472,22 @@ export function TypographyControls({
                         <SelectItem value="hi-IN">Hindi</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                  </div> */}
 
                   {/* Auto-insert Option */}
-                  <div className="flex items-center justify-between">
+                  {/* <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium">Auto-insert text</Label>
                     <Switch
                       checked={settings.speechToTextAutoInsert}
                       onCheckedChange={(checked) => handleSettingChange("speechToTextAutoInsert", checked)}
                     />
-                  </div>
+                  </div> */}
                   
-                  {!settings.speechToTextAutoInsert && (
+                  {/* {!settings.speechToTextAutoInsert && (
                     <div className="text-xs text-muted-foreground">
                       Speech will be transcribed but you'll need to manually insert it
                     </div>
-                  )}
+                  )} */}
                 </>
               )}
             </div>
