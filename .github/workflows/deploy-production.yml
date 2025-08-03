@@ -86,8 +86,7 @@ jobs:
         script: |
           cd /var/www/rogan-writer
           npm install --omit=dev --legacy-peer-deps
-          npx prisma generate
-          npx prisma db push --accept-data-loss
+          npm run db:generate
           pm2 stop rogan-writer || true
           pm2 delete rogan-writer || true
           NODE_ENV=production pm2 start npm --name "rogan-writer" -- start 
