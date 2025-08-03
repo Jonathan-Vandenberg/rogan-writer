@@ -1,0 +1,41 @@
+name: Deploy Alternative
+
+on:
+  workflow_dispatch: # Manual trigger only
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+          
+      - name: Deploy to DigitalOcean
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }} << 'EOF'
+            cd /var/www/rogan-writer
+            pm2 stop rogan-writer || true
+            
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }} .
+            else
+              git fetch origin
+              git reset --hard origin/main
+            fi
+            
+            npm ci --omit=dev
+            npx prisma generate
+            npx prisma migrate deploy
+            npm run build
+            pm2 start ecosystem.config.js || pm2 restart rogan-writer
+            pm2 save
+            pm2 status
+          EOF 

@@ -13,12 +13,13 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Deploy to DigitalOcean
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USERNAME }}
           key: ${{ secrets.DO_SSH_KEY }}
           port: 22
+          debug: true
           script: |
             # Navigate to app directory
             cd /var/www/rogan-writer
