@@ -19,7 +19,11 @@ module.exports = {
       time: true,
       // Ensure we're using Node.js 18
       interpreter: 'node',
-      node_args: '--max-old-space-size=1024'
+      node_args: '--max-old-space-size=1024',
+      // Restart policy
+      restart_delay: 4000,
+      min_uptime: '10s',
+      max_restarts: 10
     }
   ]
 }; 

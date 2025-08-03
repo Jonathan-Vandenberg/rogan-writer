@@ -1,0 +1,116 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check System Info
+      run: |
+        echo "Node version: $(node -v)"
+        echo "NPM version: $(npm -v)"
+        echo "Architecture: $(uname -m)"
+        echo "OS: $(uname -s)"
+        
+    - name: Setup Node.js 18
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.18.0'
+        architecture: 'x64'
+        cache: 'npm'
+
+    - name: Set up environment files
+      run: |
+        # Create production .env file from secrets
+        echo "NODE_ENV=production" > .env
+        echo "PORT=3000" >> .env
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+        echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
+        echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+        
+        # Copy .env for build process
+        cp .env .env.local
+
+    - name: Install dependencies
+      run: |
+        rm -rf node_modules package-lock.json || true
+        npm install --legacy-peer-deps
+        
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Build application
+      run: npm run build
+      env:
+        NODE_ENV: production
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+        NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    - name: Prepare deployment files
+      run: |
+        # Ensure proper permissions
+        chmod -R 755 .next
+        chmod 644 package.json
+        chmod 644 ecosystem.config.js
+
+    - name: Deploy to DigitalOcean
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        key: ${{ secrets.DO_SSH_KEY }}
+        source: ".next,package.json,package-lock.json,prisma,public,ecosystem.config.js,.env"
+        target: "/var/www/rogan-writer/releases/${{ github.sha }}"
+        strip_components: 0
+
+    - name: Start application
+      uses: appleboy/ssh-action@v0.1.7
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        key: ${{ secrets.DO_SSH_KEY }}
+        script: |
+          # Create directories if they don't exist
+          mkdir -p /var/www/rogan-writer/releases/${{ github.sha }}
+          mkdir -p /var/www/rogan-writer/logs
+          
+          # Navigate to new release
+          cd /var/www/rogan-writer/releases/${{ github.sha }}
+          
+          # Install production dependencies
+          npm install --omit=dev --legacy-peer-deps
+          
+          # Run database migrations
+          npx prisma migrate deploy
+          
+          # Stop existing application
+          pm2 stop rogan-writer || true
+          pm2 delete rogan-writer || true
+          
+          # Update symlink to current release
+          rm -f /var/www/rogan-writer/current
+          ln -sf /var/www/rogan-writer/releases/${{ github.sha }} /var/www/rogan-writer/current
+          
+          # Start application with PM2
+          cd /var/www/rogan-writer/current
+          NODE_ENV=production pm2 start ecosystem.config.js
+          
+          # Save PM2 configuration
+          pm2 save
+          
+          # Show status
+          pm2 status
+          
+          # Clean up old releases (keep last 3)
+          cd /var/www/rogan-writer/releases
+          ls -t | tail -n +4 | xargs rm -rf -- 
