@@ -24,6 +24,7 @@ jobs:
       with:
         node-version: '18.18.0'
         architecture: 'x64'
+        cache: 'npm'
 
     - name: Set up environment files
       run: |
@@ -34,23 +35,14 @@ jobs:
         echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
         echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
         echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
-        
-        # Add Google OAuth if using NextAuth with Google
         echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
         echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
         
         # Copy for build process
         cp .env .env.local
-        cp .env .env.production
-        
-        echo "=== Environment file created ==="
-        echo "Environment variables configured:"
-        grep -E "^[A-Z]" .env | sed 's/=.*/=***/' || echo "No environment variables found"
 
     - name: Install dependencies
-      run: |
-        rm -rf node_modules package-lock.json || true
-        npm install --legacy-peer-deps
+      run: npm install --legacy-peer-deps
         
     - name: Generate Prisma client
       run: npx prisma generate
@@ -66,88 +58,32 @@ jobs:
         GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
 
-    - name: Prepare deployment files
+    - name: Prepare for deployment
       run: |
-        # Ensure proper permissions
         chmod -R 755 .next
         chmod 644 package.json
-        chmod 644 ecosystem.config.js
 
     - name: Deploy to DigitalOcean
-      uses: appleboy/scp-action@v0.1.7
+      uses: appleboy/scp-action@master
       with:
         host: ${{ secrets.DIGITALOCEAN_HOST }}
         username: ${{ secrets.DIGITALOCEAN_USERNAME }}
         key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
-        source: ".next,package.json,package-lock.json,prisma,public,ecosystem.config.js,.env"
-        target: "/var/www/rogan-writer/releases/${{ github.sha }}"
+        source: ".next,package.json,package-lock.json,prisma,public,.env"
+        target: "/var/www/rogan-writer"
         strip_components: 0
-        rm: false
-        debug: true
+        rm: true
 
-    - name: Verify deployment files and start application
-      uses: appleboy/ssh-action@v0.1.7
+    - name: Start application
+      uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.DIGITALOCEAN_HOST }}
         username: ${{ secrets.DIGITALOCEAN_USERNAME }}
         key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
-        timeout: 300s
-        command_timeout: 60s
         script: |
-          echo "=== DEPLOYMENT START ==="
-          
-          # Create directories if they don't exist
-          mkdir -p /var/www/rogan-writer/releases/${{ github.sha }}
-          mkdir -p /var/www/rogan-writer/logs
-          echo "✅ Directories created"
-          
-          # Navigate to new release and check files
-          cd /var/www/rogan-writer/releases/${{ github.sha }}
-          echo "📁 Current directory: $(pwd)"
-          echo "📂 Files deployed:"
-          ls -la | head -10
-          
-          # Quick file validation
-          if [ ! -f package.json ] || [ ! -f .env ] || [ ! -d .next ]; then
-            echo "❌ Missing critical files"
-            ls -la
-            exit 1
-          fi
-          echo "✅ All required files found"
-          
-          # Install dependencies
-          echo "📦 Installing dependencies..."
-          npm install --omit=dev --legacy-peer-deps >/dev/null 2>&1
-          echo "✅ Dependencies installed"
-          
-          # Run migrations
-          echo "🗄️  Running migrations..."
-          npx prisma migrate deploy >/dev/null 2>&1 || echo "⚠️  No migrations needed"
-          
-          # Stop existing app
-          echo "🛑 Stopping existing app..."
-          pm2 stop rogan-writer >/dev/null 2>&1 || true
-          pm2 delete rogan-writer >/dev/null 2>&1 || true
-          
-          # Update symlink
-          echo "🔗 Updating symlink..."
-          rm -f /var/www/rogan-writer/current
-          ln -sf /var/www/rogan-writer/releases/${{ github.sha }} /var/www/rogan-writer/current
-          
-          # Start application
-          echo "🚀 Starting application..."
-          cd /var/www/rogan-writer/current
-          NODE_ENV=production pm2 start ecosystem.config.js >/dev/null 2>&1
-          
-          # Wait and check status
-          sleep 10
-          if pm2 list | grep -q "rogan-writer.*online"; then
-            echo "✅ Application started successfully"
-            pm2 save >/dev/null 2>&1
-          else
-            echo "❌ Application failed to start"
-            pm2 logs rogan-writer --err --lines 5 2>/dev/null || true
-            exit 1
-          fi
-          
-          echo "🎉 DEPLOYMENT SUCCESSFUL" 
+          cd /var/www/rogan-writer
+          npm install --omit=dev --legacy-peer-deps
+          npx prisma migrate deploy || true
+          pm2 stop rogan-writer || true
+          pm2 delete rogan-writer || true
+          NODE_ENV=production pm2 start npm --name "rogan-writer" -- start 
