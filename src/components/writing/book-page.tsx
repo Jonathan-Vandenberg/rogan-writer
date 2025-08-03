@@ -176,7 +176,7 @@ function SinglePage({
         onKeyUp={onCursorPositionChange}
         onClick={onCursorPositionChange}
         placeholder={isFirstPageOfChapter && showChapterTitle && chapterTitle && chapterTitle.trim() ? "Start writing your chapter..." : "Continue your story..."}
-        className="absolute bg-transparent border-none resize-none focus:ring-0 focus:border-none focus:outline-none overflow-hidden [&:focus]:border-none [&:focus]:outline-none [&:focus]:ring-0"
+        className="absolute bg-transparent border-none resize-none focus:ring-0 focus:border-none focus:outline-none overflow-hidden [&:focus]:border-none [&:focus]:outline-none [&:focus]:ring-0 cursor-text"
         style={{
           ...textAreaStyle,
           top: showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim() 
@@ -184,7 +184,9 @@ function SinglePage({
             : `${marginTopPx}px`,
           height: showChapterTitle && isFirstPageOfChapter && chapterTitle && chapterTitle.trim()
             ? `${pageHeightPx - marginTopPx - marginBottomPx - (chapterTitleFontSize || 26) - (chapterTitlePadding || 65)}px`
-            : `${pageHeightPx - marginTopPx - marginBottomPx}px`
+            : `${pageHeightPx - marginTopPx - marginBottomPx}px`,
+          pointerEvents: 'auto',
+          zIndex: 10
         }}
         readOnly={!isEditable}
       />
