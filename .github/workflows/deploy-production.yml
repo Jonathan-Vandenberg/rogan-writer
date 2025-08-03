@@ -27,16 +27,26 @@ jobs:
 
     - name: Set up environment files
       run: |
-        # Create production .env file from secrets
-        echo "NODE_ENV=production" > .env
+        # Start with production config template
+        cp config/.env.production .env
+        
+        # Override template values with actual production secrets
+        echo "" >> .env
+        echo "# Production values from GitHub secrets" >> .env
+        echo "NODE_ENV=production" >> .env
         echo "PORT=3000" >> .env
         echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
         echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
         echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
         echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
         
-        # Copy .env for build process
+        # Copy for build process
         cp .env .env.local
+        cp .env .env.production
+        
+        echo "=== Environment file created ==="
+        echo "Environment variables configured:"
+        grep -E "^[A-Z]" .env | sed 's/=.*/=***/' || echo "No environment variables found"
 
     - name: Install dependencies
       run: |
