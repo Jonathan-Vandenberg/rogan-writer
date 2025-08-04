@@ -49,9 +49,6 @@ jobs:
         
     - name: Run database migrations
       run: npx prisma migrate deploy
-      env:
-        NODE_ENV: production
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
         
     - name: Generate Prisma client
       run: npx prisma generate
