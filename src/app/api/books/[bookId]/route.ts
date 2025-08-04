@@ -56,7 +56,12 @@ export async function PUT(
       marginBottom: data.marginBottom,
       marginLeft: data.marginLeft,
       marginRight: data.marginRight,
-      coverImageUrl: data.coverImageUrl
+      coverImageUrl: data.coverImageUrl,
+      chapterTitleFontFamily: data.chapterTitleFontFamily,
+      chapterTitleFontSize: data.chapterTitleFontSize,
+      chapterTitleAlignment: data.chapterTitleAlignment,
+      chapterTitlePadding: data.chapterTitlePadding,
+      showChapterTitle: data.showChapterTitle
     })
     
     return NextResponse.json(book)

@@ -98,6 +98,13 @@ model Book {
   marginLeft  Float @default(1.0)
   marginRight Float @default(1.0)
 
+  // Chapter title formatting
+  chapterTitleFontFamily String @default("Verdana")
+  chapterTitleFontSize   Int    @default(26)
+  chapterTitleAlignment  String @default("center") // left, center, right
+  chapterTitlePadding    Int    @default(65)       // bottom spacing in pixels
+  showChapterTitle       Boolean @default(true)
+
   // Cover
   coverImageUrl String?
 

@@ -100,11 +100,11 @@ export default function WritePage() {
         marginTop: book.marginTop || 0.7,
         marginLeft: book.marginLeft || 0.7,
         marginRight: book.marginRight || 0.7,
-        chapterTitleFontFamily: book.fontFamily || "Verdana",
-        chapterTitleFontSize: 26,
-        chapterTitleAlignment: 'center',
-        chapterTitlePadding: 65,
-        showChapterTitle: true,
+        chapterTitleFontFamily: book.chapterTitleFontFamily || "Verdana",
+        chapterTitleFontSize: book.chapterTitleFontSize || 26,
+        chapterTitleAlignment: (book.chapterTitleAlignment as 'left' | 'center' | 'right') || 'center',
+        chapterTitlePadding: book.chapterTitlePadding || 65,
+        showChapterTitle: book.showChapterTitle !== false, // Default to true
         speechToTextEnabled: false,
         speechToTextProvider: 'webspeech',
         speechToTextLanguage: 'en-US',
@@ -132,6 +132,11 @@ export default function WritePage() {
           marginTop: settings.marginTop,
           marginLeft: settings.marginLeft,
           marginRight: settings.marginRight,
+          chapterTitleFontFamily: settings.chapterTitleFontFamily,
+          chapterTitleFontSize: settings.chapterTitleFontSize,
+          chapterTitleAlignment: settings.chapterTitleAlignment,
+          chapterTitlePadding: settings.chapterTitlePadding,
+          showChapterTitle: settings.showChapterTitle,
         }),
       })
 
