@@ -48,9 +48,9 @@ jobs:
       run: npm install --legacy-peer-deps
         
     - name: Apply database changes and generate client
-      run: npx prisma db push
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        echo "Connecting to DigitalOcean database..."
+        DATABASE_URL="${{ secrets.DATABASE_URL }}" npx prisma db push --accept-data-loss
       
     - name: Build application
       run: npm run build
