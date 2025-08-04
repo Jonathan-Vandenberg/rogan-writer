@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -53,6 +53,7 @@ interface StatsData {
 
 export default function BookStatsPage() {
   const params = useParams()
+  const router = useRouter()
   const bookId = params.bookId as string
   
   const [book, setBook] = React.useState<BookStats | null>(null)
@@ -62,6 +63,11 @@ export default function BookStatsPage() {
 
   const handleBookUpdated = (updatedBook: any) => {
     setBook(prev => prev ? { ...prev, ...updatedBook } : null)
+  }
+
+  const handleBookDeleted = () => {
+    // Redirect to main dashboard when book is deleted
+    router.push('/')
   }
 
   React.useEffect(() => {
@@ -279,10 +285,6 @@ export default function BookStatsPage() {
                   <span className="font-semibold">{book.stats.totalWords.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Total Pages:</span>
-                  <span className="font-semibold">{book.stats.totalPages}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Avg Words/Chapter:</span>
                   <span className="font-semibold">{book.stats.avgWordsPerChapter}</span>
                 </div>
@@ -421,6 +423,7 @@ export default function BookStatsPage() {
           open={showEditDialog}
           onOpenChange={setShowEditDialog}
           onBookUpdated={handleBookUpdated}
+          onBookDeleted={handleBookDeleted}
         />
       )}
     </>

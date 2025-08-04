@@ -403,7 +403,7 @@ export function TimelineView({ bookId }: TimelineViewProps) {
                 <div className="p-3 border border-r-0 bg-muted/30 font-medium">Event Details</div>
                 {timeColumns.map((timeUnit) => (
                   <div key={timeUnit} className="border border-l-0 text-center font-medium py-3 bg-muted/30">
-                    Time {timeUnit}
+                    Scene {timeUnit}
                   </div>
                 ))}
 

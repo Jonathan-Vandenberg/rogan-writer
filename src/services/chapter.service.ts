@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import type { Chapter, Prisma } from '@prisma/client'
+import { countWords } from '@/lib/word-utils'
 
 export class ChapterService {
   static async getChaptersByBookId(bookId: string): Promise<Chapter[]> {
@@ -71,7 +72,7 @@ export class ChapterService {
     // Calculate word count if content is being updated
     const updateData: any = { ...data }
     if (data.content !== undefined) {
-      updateData.wordCount = data.content.trim() ? data.content.trim().split(/\s+/).length : 0
+      updateData.wordCount = countWords(data.content)
     }
 
     return await prisma.chapter.update({
@@ -81,7 +82,7 @@ export class ChapterService {
   }
 
   static async updateChapterContent(id: string, content: string): Promise<Chapter> {
-    const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0
+    const wordCount = countWords(content)
     
     return await prisma.chapter.update({
       where: { id },
@@ -122,7 +123,7 @@ export class ChapterService {
       throw new Error('Chapter not found')
     }
 
-    const wordCount = chapter.content.trim() ? chapter.content.trim().split(/\s+/).length : 0
+    const wordCount = countWords(chapter.content)
 
     return await prisma.chapter.update({
       where: { id },

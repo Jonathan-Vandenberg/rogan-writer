@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Settings, Loader2 } from "lucide-react"
+import { BookOpen, Settings, Loader2, Trash2 } from "lucide-react"
 
 interface Book {
   id: string
@@ -41,6 +41,7 @@ interface EditBookDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onBookUpdated?: (book: Book) => void
+  onBookDeleted?: () => void
 }
 
 const genres = [
@@ -93,8 +94,10 @@ const pageSizes = [
   { value: "custom", label: "Custom Size", width: 6.0, height: 9.0 }
 ]
 
-export function EditBookDialog({ book, open, onOpenChange, onBookUpdated }: EditBookDialogProps) {
+export function EditBookDialog({ book, open, onOpenChange, onBookUpdated, onBookDeleted }: EditBookDialogProps) {
   const [isUpdating, setIsUpdating] = React.useState(false)
+  const [isDeleting, setIsDeleting] = React.useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("basic")
   const [formData, setFormData] = React.useState({
     title: book.title,
@@ -234,6 +237,32 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated }: Edit
     }
   }
 
+  const handleDeleteBook = async () => {
+    setIsDeleting(true)
+    
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('bookDeleted', { detail: { bookId: book.id } }))
+        onBookDeleted?.()
+        onOpenChange(false)
+        setShowDeleteConfirm(false)
+      } else {
+        const error = await response.json()
+        setErrors({ submit: error.error || 'Failed to delete book' })
+      }
+    } catch (error) {
+      console.error('Error deleting book:', error)
+      setErrors({ submit: 'Failed to delete book. Please try again.' })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const currentPageSize = pageSizes.find(
     size => size.width === formData.pageWidth && size.height === formData.pageHeight
   )?.value || "custom"
@@ -354,7 +383,7 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated }: Edit
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="coverImageUrl">Cover Image URL</Label>
                 <Input
                   id="coverImageUrl"
@@ -362,7 +391,7 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated }: Edit
                   onChange={(e) => handleInputChange("coverImageUrl", e.target.value)}
                   placeholder="https://example.com/cover.jpg"
                 />
-              </div>
+              </div> */}
             </TabsContent>
 
             <TabsContent value="formatting" className="space-y-4 mt-4">
@@ -524,29 +553,101 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated }: Edit
               <p className="text-sm text-red-500">{errors.submit}</p>
             )}
 
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex justify-between items-center pt-4 border-t">
               <Button 
                 type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={isUpdating}
+                variant="destructive" 
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isUpdating || isDeleting}
+                className="flex items-center gap-2"
               >
-                Cancel
+                <Trash2 className="h-4 w-4" />
+                Delete Book
               </Button>
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  "Update Book"
-                )}
-              </Button>
+              
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => onOpenChange(false)}
+                  disabled={isUpdating || isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isUpdating || isDeleting}>
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update Book"
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         </Tabs>
       </DialogContent>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Book
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{book.title}"? This action cannot be undone and will permanently remove:
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-4">
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li>All chapters and content</li>
+              <li>All characters and locations</li>
+              <li>All timeline events and plot points</li>
+              <li>All scene cards and brainstorming notes</li>
+              <li>All research items and collaborators</li>
+              <li>All writing sessions and export history</li>
+            </ul>
+            
+            <div className="bg-destructive/10 border border-destructive/20 rounded p-3">
+              <p className="text-sm font-medium text-destructive">
+                ⚠️ This action is permanent and cannot be reversed
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteBook}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Forever
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 } 

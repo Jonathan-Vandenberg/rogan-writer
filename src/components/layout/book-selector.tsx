@@ -52,6 +52,28 @@ export function BookSelector() {
     fetchBooks()
   }, [fetchBooks])
 
+  // Listen for book deletion events
+  React.useEffect(() => {
+    const handleBookDeleted = (event: CustomEvent) => {
+      const deletedBookId = event.detail.bookId
+      setBooks(prev => prev.filter(book => book.id !== deletedBookId))
+      
+      // If the deleted book was selected, clear selection or select first remaining book
+      if (selectedBookId === deletedBookId) {
+        const remainingBooks = books.filter(book => book.id !== deletedBookId)
+        if (remainingBooks.length > 0) {
+          setSelectedBookId(remainingBooks[0].id)
+        } else {
+          setSelectedBookId(null)
+          localStorage.removeItem('selectedBookId')
+        }
+      }
+    }
+
+    window.addEventListener('bookDeleted', handleBookDeleted as EventListener)
+    return () => window.removeEventListener('bookDeleted', handleBookDeleted as EventListener)
+  }, [selectedBookId, setSelectedBookId, books])
+
   const handleBookCreated = React.useCallback((newBook: Book) => {
     setBooks(prev => [newBook, ...prev])
     setSelectedBookId(newBook.id)

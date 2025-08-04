@@ -14,7 +14,7 @@ export async function GET(
     }
 
     const { bookId } = await params
-    const book = await BookService.getBookById(bookId)
+    const book = await BookService.getBookStats(bookId)
     
     if (!book) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 })

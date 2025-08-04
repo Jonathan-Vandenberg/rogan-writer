@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import type { Book, Prisma } from '@prisma/client'
+import { countWords } from '@/lib/word-utils'
 
 export type BookWithDetails = Book & {
   author: { name: string | null; email: string } | null
@@ -101,6 +102,8 @@ export class BookService {
       where: { id }
     })
   }
+
+
 
   static async getBookStats(id: string) {
     const book = await prisma.book.findUnique({

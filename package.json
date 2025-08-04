@@ -11,7 +11,9 @@
     "db:push": "npx prisma db push",
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
-    "db:seed": "npx ts-node prisma/seed.ts"
+    "db:seed": "npx ts-node prisma/seed.ts",
+    "analyze:test": "npx tsx scripts/test-analysis.ts",
+    "analyze:book": "npx tsx scripts/analyze-and-populate-book.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
@@ -53,6 +55,7 @@
     "prisma": "^6.13.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.1",
+    "tsx": "^4.20.3",
     "tw-animate-css": "^1.3.6",
     "typescript": "^5"
   }

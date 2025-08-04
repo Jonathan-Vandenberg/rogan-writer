@@ -18,6 +18,7 @@ import {
   Bookmark,
   Download,
   Palette,
+  Brain,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -38,6 +39,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { MoodOverlay } from "@/components/ui/mood-overlay"
+import { BookAnalysisButton } from "@/components/ui/book-analysis-button"
 
 const navigationItems = [
   {
@@ -64,6 +66,10 @@ const navigationItems = [
       { title: "Export", url: "/export", icon: Download },
     ],
   },
+  // {
+  //   title: "AI Tools",
+  //   items: [],
+  // },
 ]
 
 function SidebarLogoHeader() {
@@ -118,6 +124,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </SidebarMenuItem>
                   )
                 })}
+                {/* Special handling for AI Tools section */}
+                {group.title === "AI Tools" && (
+                  <SidebarMenuItem>
+                    <div className="px-2 py-1">
+                      <BookAnalysisButton />
+                    </div>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

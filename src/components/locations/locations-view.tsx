@@ -9,15 +9,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MapPin, Plus, Edit, Trash2, Search, Calendar} from 'lucide-react'
+import { MapPin, Plus, Edit, Trash2, Search, Calendar, Clock, User} from 'lucide-react'
 import { useSelectedBook } from '@/contexts/selected-book-context'
-import type { Location } from '@prisma/client'
+import type { Location, TimelineEvent, Character } from '@prisma/client'
 
 // Extended type for locations with timeline event count
 interface LocationWithCounts extends Location {
   _count: {
     timelineEvents: number
   }
+}
+
+// Extended type for timeline events with character data
+interface TimelineEventWithCharacter extends TimelineEvent {
+  character?: Character
 }
 
 interface LocationsViewProps {
@@ -35,6 +40,10 @@ export function LocationsView({ className }: LocationsViewProps) {
   const [editingLocation, setEditingLocation] = useState<LocationWithCounts | null>(null)
   const [viewingLocation, setViewingLocation] = useState<LocationWithCounts | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  
+  // Timeline events for viewing location
+  const [locationEvents, setLocationEvents] = useState<TimelineEventWithCharacter[]>([])
+  const [loadingEvents, setLoadingEvents] = useState(false)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -150,6 +159,29 @@ export function LocationsView({ className }: LocationsViewProps) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
+  // Fetch timeline events for a specific location
+  const fetchLocationEvents = async (locationId: string) => {
+    if (!selectedBookId) return
+    
+    try {
+      setLoadingEvents(true)
+      const response = await fetch(`/api/books/${selectedBookId}/timeline-events`)
+      if (response.ok) {
+        const allEvents = await response.json()
+        // Filter events for this location and sort by timeline order
+        const locationSpecificEvents = allEvents
+          .filter((event: TimelineEventWithCharacter) => event.locationId === locationId)
+          .sort((a: TimelineEventWithCharacter, b: TimelineEventWithCharacter) => a.startTime - b.startTime)
+        setLocationEvents(locationSpecificEvents)
+      }
+    } catch (error) {
+      console.error('Error fetching location events:', error)
+      setLocationEvents([])
+    } finally {
+      setLoadingEvents(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -223,7 +255,10 @@ export function LocationsView({ className }: LocationsViewProps) {
               <div 
                 key={location.id} 
                 className="bg-card rounded-lg border border-border py-3 cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => setViewingLocation(location)}
+                onClick={() => {
+                  setViewingLocation(location)
+                  fetchLocationEvents(location.id)
+                }}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -404,7 +439,12 @@ export function LocationsView({ className }: LocationsViewProps) {
       </Dialog>
 
       {/* View Location Dialog */}
-      <Dialog open={!!viewingLocation} onOpenChange={(open) => !open && setViewingLocation(null)}>
+      <Dialog open={!!viewingLocation} onOpenChange={(open) => {
+        if (!open) {
+          setViewingLocation(null)
+          setLocationEvents([])
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
@@ -455,19 +495,74 @@ export function LocationsView({ className }: LocationsViewProps) {
                 )}
 
                 {/* Timeline Events */}
-                {viewingLocation._count.timelineEvents > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Timeline Events</h4>
-                    <div className="bg-muted/30 p-3 rounded">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {viewingLocation._count.timelineEvents} event{viewingLocation._count.timelineEvents !== 1 ? 's' : ''} occur at this location
-                        </span>
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Timeline Events
+                    {viewingLocation._count.timelineEvents > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {viewingLocation._count.timelineEvents}
+                      </Badge>
+                    )}
+                  </h4>
+                  
+                  {loadingEvents ? (
+                    <div className="bg-muted/30 p-4 rounded">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-r-transparent" />
+                        Loading events...
                       </div>
                     </div>
-                  </div>
-                )}
+                  ) : locationEvents.length > 0 ? (
+                    <div className="bg-muted/30 p-4 rounded">
+                      <ScrollArea className="h-60">
+                        <div className="space-y-3 pr-4">
+                          {locationEvents.map((event, index) => (
+                            <div
+                              key={event.id}
+                              className="bg-background border rounded p-3 space-y-2"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <h5 className="font-medium text-sm">{event.title}</h5>
+                                  {event.description && (
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {event.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{event.startTime}-{event.endTime}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 text-xs">
+                                {event.character && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <User className="h-2 w-2 mr-1" />
+                                    {event.character.name}
+                                  </Badge>
+                                )}
+                                {event.eventDate && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {event.eventDate}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  ) : (
+                    <div className="bg-muted/30 p-4 rounded">
+                      <p className="text-sm text-muted-foreground text-center">
+                        No timeline events occur at this location yet
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </ScrollArea>
@@ -475,6 +570,7 @@ export function LocationsView({ className }: LocationsViewProps) {
             <Button 
               onClick={() => {
                 setViewingLocation(null)
+                setLocationEvents([])
                 if (viewingLocation) {
                   startEditing(viewingLocation)
                 }
@@ -490,6 +586,7 @@ export function LocationsView({ className }: LocationsViewProps) {
                 if (viewingLocation && confirm('Are you sure you want to delete this location?')) {
                   handleDeleteLocation(viewingLocation.id)
                   setViewingLocation(null)
+                  setLocationEvents([])
                 }
               }}
               variant="destructive"
