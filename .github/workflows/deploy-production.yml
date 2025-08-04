@@ -48,7 +48,9 @@ jobs:
       run: npm install --legacy-peer-deps
         
     - name: Generate Prisma client
-      run: npx prisma generate
+      run: |
+        rm -rf node_modules/.prisma
+        npx prisma generate
       
     - name: Build application
       run: npm run build
