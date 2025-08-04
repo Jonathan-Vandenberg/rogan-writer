@@ -47,10 +47,8 @@ jobs:
     - name: Install dependencies
       run: npm install --legacy-peer-deps
         
-    - name: Apply database changes and generate client
-      run: |
-        echo "Connecting to DigitalOcean database..."
-        DATABASE_URL="${{ secrets.DATABASE_URL }}" npx prisma db push --accept-data-loss
+    - name: Generate Prisma client
+      run: npx prisma generate
       
     - name: Build application
       run: npm run build
@@ -88,6 +86,8 @@ jobs:
         script: |
           cd /var/www/rogan-writer
           npm install --omit=dev --legacy-peer-deps
+          echo "Running database migrations..."
+          npx prisma migrate deploy
           npm run db:generate
           pm2 stop rogan-writer || true
           pm2 delete rogan-writer || true
