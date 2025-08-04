@@ -100,11 +100,11 @@ export default function WritePage() {
         marginTop: book.marginTop || 0.7,
         marginLeft: book.marginLeft || 0.7,
         marginRight: book.marginRight || 0.7,
-        chapterTitleFontFamily: book.chapterTitleFontFamily || "Verdana",
-        chapterTitleFontSize: book.chapterTitleFontSize || 26,
-        chapterTitleAlignment: (book.chapterTitleAlignment as 'left' | 'center' | 'right') || 'center',
-        chapterTitlePadding: book.chapterTitlePadding || 65,
-        showChapterTitle: book.showChapterTitle !== false, // Default to true
+        chapterTitleFontFamily: (book as any).chapterTitleFontFamily || "Verdana",
+        chapterTitleFontSize: (book as any).chapterTitleFontSize || 26,
+        chapterTitleAlignment: ((book as any).chapterTitleAlignment as 'left' | 'center' | 'right') || 'center',
+        chapterTitlePadding: (book as any).chapterTitlePadding || 65,
+        showChapterTitle: (book as any).showChapterTitle !== false, // Default to true
         speechToTextEnabled: false,
         speechToTextProvider: 'webspeech',
         speechToTextLanguage: 'en-US',
