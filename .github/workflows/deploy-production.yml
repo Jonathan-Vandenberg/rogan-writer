@@ -76,7 +76,7 @@ jobs:
         host: ${{ secrets.DIGITALOCEAN_HOST }}
         username: ${{ secrets.DIGITALOCEAN_USERNAME }}
         key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
-        source: ".next,package.json,package-lock.json,prisma,public,.env,.env.local"
+        source: ".next,package.json,package-lock.json,prisma,public,.env,.env.local,node_modules"
         target: "/var/www/rogan-writer"
         strip_components: 0
         rm: true
