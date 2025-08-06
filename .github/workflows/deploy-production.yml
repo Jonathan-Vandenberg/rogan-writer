@@ -58,7 +58,6 @@ jobs:
     - name: Build application
       run: npm run build
       env:
-        NODE_ENV: production
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
         NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
