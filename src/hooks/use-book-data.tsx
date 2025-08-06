@@ -286,8 +286,10 @@ export function useBookData(typographySettings?: TypographySettings): UseBookDat
       if (!chaptersResponse.ok) throw new Error('Failed to load chapters')
       const chapters = await chaptersResponse.json()
 
+      console.log('bookid:', bookId)
       // Load book details
       const bookResponse = await fetch(`/api/books/${bookId}`)
+      console.log('bookResponse', bookResponse)
       if (!bookResponse.ok) throw new Error('Failed to load book')
       const bookData = await bookResponse.json()
 
