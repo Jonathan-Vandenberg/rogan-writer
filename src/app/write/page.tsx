@@ -5,11 +5,10 @@ import { BookPage } from "@/components/writing/book-page"
 import { TypographyControls } from "@/components/writing/typography-controls"
 import { PageNavigation } from "@/components/writing/page-navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { useSelectedBook } from "@/contexts/selected-book-context"
 import { useBookData } from "@/hooks/use-book-data"
+import { useAutoPagination } from "@/hooks/use-auto-pagination"
 import { MicrophoneButton } from "@/components/writing/microphone-button"
 import { SpeechToTextProvider } from "@/hooks/use-speech-to-text"
 import { 
@@ -31,6 +30,7 @@ interface TypographySettings {
   pageWidth: number
   pageHeight: number
   marginTop: number
+  marginBottom: number
   marginLeft: number
   marginRight: number
   // Chapter title settings
@@ -57,6 +57,7 @@ export default function WritePage() {
     pageWidth: 6,
     pageHeight: 9,
     marginTop: 0.7,
+    marginBottom: 0.7,
     marginLeft: 0.7,
     marginRight: 0.7,
     chapterTitleFontFamily: "Verdana",
@@ -98,6 +99,7 @@ export default function WritePage() {
         pageWidth: book.pageWidth || 6,
         pageHeight: book.pageHeight || 9,
         marginTop: book.marginTop || 0.7,
+        marginBottom: (book as any).marginBottom || 0.7,
         marginLeft: book.marginLeft || 0.7,
         marginRight: book.marginRight || 0.7,
         chapterTitleFontFamily: (book as any).chapterTitleFontFamily || "Verdana",
@@ -130,6 +132,7 @@ export default function WritePage() {
           fontFamily: settings.fontFamily,
           lineHeight: settings.lineHeight,
           marginTop: settings.marginTop,
+          marginBottom: settings.marginBottom,
           marginLeft: settings.marginLeft,
           marginRight: settings.marginRight,
           chapterTitleFontFamily: settings.chapterTitleFontFamily,
@@ -244,10 +247,15 @@ export default function WritePage() {
     return () => clearTimeout(timer)
   }, [localContent, saveCurrentContent])
 
-  // Handle page content changes - NO auto-navigation, just save content
+  // Handle page content changes with auto-pagination
   const handleContentChange = (content: string) => {
+    const previousLength = localContent.length;
     setLocalContent(content)
-    // Removed checkAndNavigateToCorrectPage - let users type freely!
+    
+    // Trigger immediate overflow check for large content changes (paste, etc.)
+    if (Math.abs(content.length - previousLength) > 100) {
+      checkOverflow();
+    }
   }
 
   // Handle speech-to-text insertion
@@ -365,6 +373,33 @@ export default function WritePage() {
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen)
   }
+
+  // Auto-pagination integration
+  const { checkOverflow } = useAutoPagination({
+    content: localContent,
+    pageConfig: {
+      pageWidth: typographySettings.pageWidth,
+      pageHeight: typographySettings.pageHeight,
+      fontSize: typographySettings.fontSize,
+      fontFamily: typographySettings.fontFamily,
+      lineHeight: typographySettings.lineHeight,
+      marginTop: typographySettings.marginTop,
+      marginBottom: typographySettings.marginBottom,
+      marginLeft: typographySettings.marginLeft,
+      marginRight: typographySettings.marginRight,
+      chapterTitleHeight: typographySettings.showChapterTitle && chapterTitle && currentPageIndex === 1 
+        ? typographySettings.chapterTitleFontSize + typographySettings.chapterTitlePadding 
+        : 0,
+    },
+    currentPageIndex,
+    totalPages,
+    onPageChange: handlePageChange,
+    onContentOverflow: (overflowText, estimatedPages) => {
+      console.log(`Content overflow detected. Need ${estimatedPages} total pages. Overflow: ${overflowText.length} chars`);
+    },
+    enabled: !!currentPageData && !!currentChapter,
+    debounceMs: 500, // Slightly longer debounce for better performance
+  })
 
   // Loading state
   if (isLoading) {

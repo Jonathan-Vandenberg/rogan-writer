@@ -19,6 +19,7 @@ interface TypographySettings {
   pageWidth: number
   pageHeight: number
   marginTop: number
+  marginBottom: number
   marginLeft: number
   marginRight: number
   // Chapter title settings
@@ -46,14 +47,8 @@ const FONT_FAMILIES = [
   { value: "Times New Roman", label: "Times New Roman", category: "serif" },
 ]
 
-const PAGE_FORMATS = [
-  { name: "Trade Paperback", width: 6, height: 9, description: "Standard fiction" },
-  { name: "Mass Market", width: 4.25, height: 6.87, description: "Pocket book" },
-  { name: "Hardcover", width: 6.14, height: 9.21, description: "Premium edition" },
-  { name: "Large Print", width: 8.5, height: 11, description: "Accessibility" },
-  { name: "Square", width: 8, height: 8, description: "Art/Photo books" },
-  // { name: "Custom", width: 0, height: 0, description: "Custom dimensions" },
-]
+// Trade Paperback (6x9) is the only supported format
+const TRADE_PAPERBACK_FORMAT = { name: "Trade Paperback", width: 6, height: 9, description: "Standard fiction" }
 
 export function TypographyControls({ 
   settings, 
@@ -69,15 +64,7 @@ export function TypographyControls({
     })
   }
 
-  const handlePageFormatChange = (format: typeof PAGE_FORMATS[0]) => {
-    if (format.name !== "Custom") {
-      onSettingsChange({
-        ...settings,
-        pageWidth: format.width,
-        pageHeight: format.height
-      })
-    }
-  }
+  // Page format is fixed to Trade Paperback (6x9) - no user selection needed
 
   const resetToDefaults = () => {
     onSettingsChange({
@@ -87,6 +74,7 @@ export function TypographyControls({
       pageWidth: 6,
       pageHeight: 9,
       marginTop: 0.7,
+      marginBottom: 0.7,
       marginLeft: 1,
       marginRight: 1,
       chapterTitleFontFamily: "Verdana",
@@ -101,9 +89,7 @@ export function TypographyControls({
     })
   }
 
-  const currentFormat = PAGE_FORMATS.find(
-    f => f.width === settings.pageWidth && f.height === settings.pageHeight
-  )
+  // No format selection needed - always Trade Paperback
 
   return (
     <div className={className + " bg-card rounded-lg border border-border py-3"}>
@@ -137,9 +123,6 @@ export function TypographyControls({
           </Badge>
           <Badge variant="secondary" className="text-xs">
             {settings.pageWidth}×{settings.pageHeight}
-          </Badge>
-          <Badge variant="secondary" className="text-xs">
-            {currentFormat?.name || "Custom"}
           </Badge>
         </div>
 
@@ -290,67 +273,9 @@ export function TypographyControls({
               )}
             </div>
 
-            <Separator />
+            {/* Page Format is hardcoded to Trade Paperback (6x9) - no UI needed */}
 
-            {/* Page Format */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Page Format</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {PAGE_FORMATS.map((format) => (
-                  <Button
-                    key={format.name}
-                    variant={currentFormat?.name === format.name ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handlePageFormatChange(format)}
-                    className="h-auto p-2 flex flex-col items-start"
-                  >
-                    <div className="font-medium text-xs">{format.name}</div>
-                    {format.width > 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        {format.width}×{format.height}
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      {format.description}
-                    </div>
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Dimensions */}
-            {(!currentFormat || currentFormat.name === "Custom") && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label className="text-xs font-medium">Width</Label>
-                    <span className="text-xs text-muted-foreground">{settings.pageWidth}</span>
-                  </div>
-                  <Slider
-                    value={[settings.pageWidth]}
-                    onValueChange={(values: number[]) => handleSettingChange("pageWidth", values[0])}
-                    min={3}
-                    max={12}
-                    step={0.25}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label className="text-xs font-medium">Height</Label>
-                    <span className="text-xs text-muted-foreground">{settings.pageHeight}</span>
-                  </div>
-                  <Slider
-                    value={[settings.pageHeight]}
-                    onValueChange={(values: number[]) => handleSettingChange("pageHeight", values[0])}
-                    min={4}
-                    max={14}
-                    step={0.25}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            )}
+            {/* Custom Dimensions removed - only Trade Paperback (6x9) supported */}
 
             <Separator />
 

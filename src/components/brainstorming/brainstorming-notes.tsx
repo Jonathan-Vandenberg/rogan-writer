@@ -309,9 +309,13 @@ export function BrainstormingNotes({ bookId }: BrainstormingNotesProps) {
       <Dialog open={!!viewingNote} onOpenChange={(open) => !open && setViewingNote(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle className="text-xl pr-8">{viewingNote?.title}</DialogTitle>
-            <DialogDescription className="flex items-center justify-between">
-              <span>Created {viewingNote && new Date(viewingNote.createdAt).toLocaleDateString()}</span>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <DialogTitle className="text-xl pr-8">{viewingNote?.title}</DialogTitle>
+                <DialogDescription>
+                  Created {viewingNote && new Date(viewingNote.createdAt).toLocaleDateString()}
+                </DialogDescription>
+              </div>
               <div className="flex gap-1">
                 <Button
                   variant="outline"
@@ -340,7 +344,7 @@ export function BrainstormingNotes({ bookId }: BrainstormingNotesProps) {
                   Delete
                 </Button>
               </div>
-            </DialogDescription>
+            </div>
           </DialogHeader>
           
           <div 
