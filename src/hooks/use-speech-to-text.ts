@@ -135,7 +135,7 @@ export function useSpeechToText({
           if (transcript && settings.autoInsert) {
             onTextReceived?.(transcript)
           }
-        } catch (error) {
+        } catch (error: any) {
           setState(prev => ({ 
             ...prev, 
             error: error instanceof Error ? error.message : 'Transcription failed'
@@ -146,7 +146,8 @@ export function useSpeechToText({
       }
 
       return mediaRecorder
-    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error: any) {
       setState(prev => ({ 
         ...prev, 
         error: 'Microphone access denied or not available'

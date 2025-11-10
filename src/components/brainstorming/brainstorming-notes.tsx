@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Plus, Search, Edit, Trash2, Lightbulb } from 'lucide-react'
+import { AISuggestions } from './ai-suggestions'
 import type { BrainstormingNote } from '@prisma/client'
 
 interface BrainstormingNotesProps {
@@ -156,13 +157,21 @@ export function BrainstormingNotes({ bookId }: BrainstormingNotesProps) {
           </h1>
         </div>
         
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Note
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <AISuggestions 
+            bookId={bookId} 
+            onSuggestionAccepted={() => {
+              // Refresh notes when a suggestion is accepted
+              fetchNotes()
+            }}
+          />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Note
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Create New Note</DialogTitle>
@@ -182,6 +191,7 @@ export function BrainstormingNotes({ bookId }: BrainstormingNotesProps) {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Search */}

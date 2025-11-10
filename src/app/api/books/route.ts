@@ -10,6 +10,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Ensure user exists in database (for JWT + PrismaAdapter compatibility)
+    await BookService.ensureUserExists({
+      id: session.user.id,
+      email: session.user.email!,
+      name: session.user.name || undefined,
+      image: session.user.image || undefined
+    })
+
     const books = await BookService.getBooksByUserId(session.user.id)
     
     return NextResponse.json(books)
@@ -34,6 +42,14 @@ export async function POST(request: Request) {
     if (!title || title.trim().length === 0) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
+
+    // Ensure user exists in database (for JWT + PrismaAdapter compatibility)
+    await BookService.ensureUserExists({
+      id: session.user.id,
+      email: session.user.email!,
+      name: session.user.name || undefined,
+      image: session.user.image || undefined
+    })
 
     // Create the book with default typography settings
     const book = await BookService.createBook({

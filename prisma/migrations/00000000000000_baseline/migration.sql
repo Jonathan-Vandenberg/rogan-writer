@@ -1,6 +1,9 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+-- EnableExtension
+CREATE EXTENSION IF NOT EXISTS "vector";
+
 -- CreateEnum
 CREATE TYPE "public"."BookStatus" AS ENUM ('DRAFT', 'IN_PROGRESS', 'FIRST_DRAFT_COMPLETE', 'EDITING', 'BETA_READING', 'FINAL_DRAFT', 'PUBLISHED');
 

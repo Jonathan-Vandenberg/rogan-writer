@@ -11,6 +11,11 @@ import { useBookData } from "@/hooks/use-book-data"
 import { useAutoPagination } from "@/hooks/use-auto-pagination"
 import { MicrophoneButton } from "@/components/writing/microphone-button"
 import { SpeechToTextProvider } from "@/hooks/use-speech-to-text"
+import ComprehensiveAnalysis from "@/components/comprehensive-analysis"
+import DraftGenerator from "@/components/draft-generator"
+import ResearchModal from "@/components/research-modal"
+import AudiobookModal from "@/components/audiobook-modal"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { 
   Save, 
   Maximize2, 
@@ -82,6 +87,7 @@ export default function WritePage() {
     updateChapterContent,
     updateChapterTitle,
     createNewChapter,
+    deleteChapter,
     setCurrentChapter,
     setCurrentPage,
     getCurrentChapterIndex,
@@ -159,6 +165,11 @@ export default function WritePage() {
   const [isTextareaFocused, setIsTextareaFocused] = React.useState(false)
   const [cursorPosition, setCursorPosition] = React.useState(0)
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
+  
+  // Delete chapter confirmation state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
+  const [chapterToDelete, setChapterToDelete] = React.useState<{ index: number; title: string; id: string } | null>(null)
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   // Computed values
   const currentChapterIndex = getCurrentChapterIndex()
@@ -364,6 +375,36 @@ export default function WritePage() {
     }
   }
 
+  const handleDeleteChapter = (chapterIndex: number) => {
+    if (!book || book.chapters.length <= 1) return
+
+    const chapter = book.chapters[chapterIndex - 1] // Convert 1-based to 0-based index
+    if (!chapter) return
+
+    setChapterToDelete({
+      index: chapterIndex,
+      title: chapter.title,
+      id: chapter.id
+    })
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteChapter = async () => {
+    if (!chapterToDelete) return
+
+    try {
+      setIsDeleting(true)
+      await deleteChapter(chapterToDelete.id)
+      setIsDeleteDialogOpen(false)
+      setChapterToDelete(null)
+    } catch (err) {
+      console.error('Failed to delete chapter:', err)
+      // Error will be handled by the deleteChapter function
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   // Save manually
   const handleSave = async () => {
     await saveCurrentContent('high')
@@ -486,6 +527,27 @@ export default function WritePage() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            <ResearchModal 
+              bookId={selectedBookId}
+              bookGenre={book?.genre}
+              className="h-8"
+            />
+            
+            <ComprehensiveAnalysis 
+              bookId={selectedBookId} 
+              className="h-8"
+            />
+            
+            <DraftGenerator 
+              bookId={selectedBookId} 
+              className="h-8"
+            />
+            
+            <AudiobookModal 
+              bookId={selectedBookId}
+              className="h-8"
+            />
+            
             {typographySettings.speechToTextEnabled && (
               <MicrophoneButton
                 provider={typographySettings.speechToTextProvider}
@@ -526,11 +588,13 @@ export default function WritePage() {
               currentChapter={currentChapterIndex}
               totalChapters={book.chapters.length}
               chapterTitle={chapterTitle}
+              audioUrl={currentChapter?.audioUrl}
               onPageChange={handlePageChange}
               onChapterChange={handleChapterChange}
               onChapterTitleChange={handleChapterTitleChange}
               onNewPage={handleNewPage}
               onNewChapter={handleNewChapter}
+              onDeleteChapter={handleDeleteChapter}
             />
 
             {/* Typography Controls */}
@@ -541,6 +605,8 @@ export default function WritePage() {
                 saveTypographySettings(newSettings)
               }}
             />
+
+            {/* Research Panel removed - now using modal in header */}
 
             {/* Quick Stats */}
             {/* <div className="bg-card rounded-lg border border-border py-3">
@@ -617,6 +683,23 @@ export default function WritePage() {
           )}
         </div>
       </div>
+
+      {/* Delete Chapter Confirmation Dialog */}
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Delete Chapter"
+        description={
+          chapterToDelete
+            ? `Are you sure you want to delete "${chapterToDelete.title}"? This action cannot be undone and will permanently delete all content in this chapter.`
+            : "Are you sure you want to delete this chapter?"
+        }
+        confirmText="Delete Chapter"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={confirmDeleteChapter}
+        isLoading={isDeleting}
+      />
     </div>
   )
 } 

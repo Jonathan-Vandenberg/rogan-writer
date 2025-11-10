@@ -19,5 +19,10 @@ services:
       timeout: 5s
       retries: 5
 
+  # TTS Service Note:
+  # For audiobook generation, run Dia TTS natively on your machine.
+  # See AUDIOBOOK-ENV.md for setup instructions.
+  # Docker is not recommended for TTS due to GPU/Metal requirements.
+
 volumes:
   postgres_data: 

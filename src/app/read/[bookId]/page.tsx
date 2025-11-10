@@ -33,6 +33,7 @@ interface BookData {
     content: string
     orderIndex: number
     wordCount: number
+    audioUrl: string | null
   }>
   _count: {
     chapters: number
@@ -407,6 +408,7 @@ export default function ReadBookPage() {
             currentChapter={getCurrentChapterIndex(currentPageIndex) + 1}
             totalChapters={book._count.chapters}
             chapterTitle={getChapterTitle(currentPageIndex)}
+            audioUrl={getCurrentChapter(currentPageIndex)?.audioUrl}
             onPageChange={(pageNum) => setCurrentPageIndex(pageNum - 1)}
             onChapterChange={(chapterNum) => goToChapter(chapterNum - 1)}
             onNewPage={addNewPage}

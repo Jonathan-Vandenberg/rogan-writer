@@ -11,6 +11,7 @@ export const config = {
       Google({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        allowDangerousEmailAccountLinking: true, // Allow linking accounts with same email
       })
     ] : []),
   ],
@@ -18,6 +19,21 @@ export const config = {
     strategy: "jwt", // Use JWT for OAuth providers
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Allow automatic account linking if email matches
+      if (account?.provider && user.email) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+          include: { accounts: true }
+        })
+        
+        if (existingUser && existingUser.accounts.length === 0) {
+          // User exists but has no linked accounts - allow linking
+          return true
+        }
+      }
+      return true
+    },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.sub!

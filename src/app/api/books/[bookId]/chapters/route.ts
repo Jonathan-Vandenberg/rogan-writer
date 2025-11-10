@@ -42,6 +42,16 @@ export async function POST(
       description: data.description,
       bookId: bookId
     })
+
+    // 🚀 AUTO-GENERATE EMBEDDING for new chapter
+    try {
+      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+      await aiEmbeddingService.updateChapterEmbedding(chapter.id)
+      console.log(`✅ Generated embedding for chapter: ${chapter.id}`)
+    } catch (embeddingError) {
+      console.error(`⚠️ Failed to generate embedding for chapter ${chapter.id}:`, embeddingError)
+      // Don't fail the request if embedding generation fails
+    }
     
     return NextResponse.json(chapter, { status: 201 })
   } catch (error) {

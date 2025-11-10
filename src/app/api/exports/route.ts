@@ -7,13 +7,10 @@ export async function GET(request: Request) {
     const session = await auth()
     
     if (!session?.user?.id) {
-      console.log('Unauthorized request for export stats')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('Fetching export stats for user:', session.user.id)
     const exportStats = await ExportService.getExportStats(session.user.id)
-    console.log('Export stats retrieved:', exportStats)
     
     return NextResponse.json(exportStats)
   } catch (error) {

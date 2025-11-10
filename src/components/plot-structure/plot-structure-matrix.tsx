@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label'
 
 import { Plus, Target, Edit, Trash2, CheckCircle, Circle, MoreHorizontal } from 'lucide-react'
+import { AIPlotSuggestions } from './ai-plot-suggestions'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { PlotPoint, PlotPointType } from '@prisma/client'
 
@@ -40,6 +41,12 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
   const [viewingPoint, setViewingPoint] = useState<PlotPointWithSubplot | null>(null)
   const [isAddSubplotOpen, setIsAddSubplotOpen] = useState(false)
   const [newSubplotName, setNewSubplotName] = useState('')
+  const [isAIPlotSuggestionsOpen, setIsAIPlotSuggestionsOpen] = useState(false)
+
+  // Debug: Log modal state changes (temporary)
+  React.useEffect(() => {
+    console.log('🎭 Parent modal state:', isAIPlotSuggestionsOpen ? 'OPEN' : 'CLOSED')
+  }, [isAIPlotSuggestionsOpen])
 
   // Form state for editing plot points
   const [formData, setFormData] = useState({
@@ -48,11 +55,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
     completed: false
   })
 
-  useEffect(() => {
-    fetchPlotPoints()
-  }, [bookId])
-
-  const fetchPlotPoints = async () => {
+  const fetchPlotPoints = useCallback(async () => {
     try {
       setIsLoading(true)
       const response = await fetch(`/api/books/${bookId}/plot-points`)
@@ -82,14 +85,75 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
           })
           .map(([subplot]) => subplot)
 
-        setSubplots(sortedSubplots.length > 0 ? sortedSubplots : ['main'])
+        const newSubplots = sortedSubplots.length > 0 ? sortedSubplots : ['main']
+        
+        // Only update subplots if they actually changed (prevents unnecessary re-renders)
+        if (JSON.stringify(newSubplots) !== JSON.stringify(subplots)) {
+          console.log('📋 Parent: setSubplots called')
+          setSubplots(newSubplots)
+        }
       }
     } catch (error) {
       console.error('Error fetching plot points:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [bookId, subplots])
+
+  // Silent version that doesn't trigger loading state
+  const fetchPlotPointsSilently = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/books/${bookId}/plot-points`)
+      if (response.ok) {
+        const data = await response.json()
+        setPlotPoints(data)
+        
+        // Extract unique subplots and sort by creation date
+        const subplotGroups = data.reduce((acc: Record<string, Date>, plotPoint: PlotPoint) => {
+          const subplot = plotPoint.subplot || 'main'
+          const createdAt = new Date(plotPoint.createdAt)
+          
+          if (!acc[subplot] || createdAt < acc[subplot]) {
+            acc[subplot] = createdAt
+          }
+          return acc
+        }, {})
+
+        // Sort subplots by earliest creation date, keeping 'main' first
+        const sortedSubplots = Object.entries(subplotGroups)
+          .sort(([subplotA, dateA], [subplotB, dateB]) => {
+            // Always keep 'main' first
+            if (subplotA === 'main') return -1
+            if (subplotB === 'main') return 1
+            // Sort others by creation date
+            return (dateA as Date).getTime() - (dateB as Date).getTime()
+          })
+          .map(([subplot]) => subplot)
+
+        const newSubplots = sortedSubplots.length > 0 ? sortedSubplots : ['main']
+        
+        // Only update subplots if they actually changed (prevents unnecessary re-renders)
+        if (JSON.stringify(newSubplots) !== JSON.stringify(subplots)) {
+          console.log('📋 Parent: setSubplots called')
+          setSubplots(newSubplots)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching plot points:', error)
+    }
+    // No setIsLoading - this prevents the loading skeleton that unmounts components
+  }, [bookId, subplots])
+
+  // Memoized callback to prevent unnecessary re-renders of AIPlotSuggestions  
+  const handleSuggestionAccepted = useCallback(() => {
+    console.log('🔄 Parent: fetchPlotPoints called (silent refresh)')
+    // Silent refresh - don't show loading to prevent unmounting AIPlotSuggestions
+    fetchPlotPointsSilently()
+  }, [fetchPlotPointsSilently])
+
+  useEffect(() => {
+    fetchPlotPoints()
+  }, [fetchPlotPoints])
 
   const getPlotPointForSubplot = (subplot: string, type: PlotPointType): PlotPointWithSubplot | null => {
     return plotPoints.find(p => (p.subplot || 'main') === subplot && p.type === type) || null
@@ -285,13 +349,22 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
           </div>
         </div>
         
-        <Dialog open={isAddSubplotOpen} onOpenChange={setIsAddSubplotOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Subplot
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <AIPlotSuggestions 
+            key="ai-plot-suggestions"
+            bookId={bookId} 
+            subplots={subplots}
+            isOpen={isAIPlotSuggestionsOpen}
+            onOpenChange={setIsAIPlotSuggestionsOpen}
+            onSuggestionAccepted={handleSuggestionAccepted}
+          />
+          <Dialog open={isAddSubplotOpen} onOpenChange={setIsAddSubplotOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Subplot
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Subplot</DialogTitle>
@@ -320,6 +393,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Plot Structure Matrix */}

@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import OpenAI from 'openai'
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { llmService } from '@/services/llm.service'
 
 interface AnalysisResult {
   characters: Array<{
@@ -107,20 +102,22 @@ Return your analysis in this exact JSON structure:
 Only include elements that are clearly present in the content. Be thorough but accurate.`
 
     try {
-      // Call OpenAI API for content analysis
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages: [
+      // Call LLM service for content analysis
+      const completion = await llmService.chatCompletion(
+        [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Analyze this book content:\n\n${content}` }
         ],
-        temperature: 0.3,
-        max_tokens: 4000
-      })
+        {
+          model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4-turbo-preview', // Use default model in dev
+          temperature: 0.3,
+          max_tokens: 2000
+        }
+      )
 
-      const analysisText = completion.choices[0]?.message?.content
+      const analysisText = completion.content
       if (!analysisText) {
-        throw new Error('No analysis returned from OpenAI')
+        throw new Error('No analysis returned from LLM')
       }
 
       // Parse the JSON response (handle markdown code blocks)

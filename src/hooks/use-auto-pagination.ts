@@ -29,7 +29,7 @@ export function useAutoPagination({
   enabled = true,
   debounceMs = 300,
 }: AutoPaginationOptions) {
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastContentRef = useRef<string>('');
   const processingRef = useRef<boolean>(false);
 

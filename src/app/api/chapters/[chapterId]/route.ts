@@ -44,6 +44,17 @@ export async function PUT(
     // Handle content updates specifically
     if (data.content !== undefined) {
       const chapter = await ChapterService.updateChapterContent(resolvedParams.chapterId, data.content)
+      
+      // 🚀 AUTO-REGENERATE EMBEDDING for updated chapter content
+      try {
+        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+        await aiEmbeddingService.updateChapterEmbedding(resolvedParams.chapterId)
+        console.log(`✅ Updated embedding for chapter: ${resolvedParams.chapterId}`)
+      } catch (embeddingError) {
+        console.error(`⚠️ Failed to update embedding for chapter ${resolvedParams.chapterId}:`, embeddingError)
+        // Don't fail the request if embedding generation fails
+      }
+      
       return NextResponse.json(chapter)
     }
     
@@ -53,6 +64,18 @@ export async function PUT(
       description: data.description,
       orderIndex: data.orderIndex
     })
+    
+    // 🚀 AUTO-REGENERATE EMBEDDING if title or description changed (part of embedding content)
+    if (data.title !== undefined || data.description !== undefined) {
+      try {
+        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+        await aiEmbeddingService.updateChapterEmbedding(resolvedParams.chapterId)
+        console.log(`✅ Updated embedding for chapter: ${resolvedParams.chapterId} (title/description change)`)
+      } catch (embeddingError) {
+        console.error(`⚠️ Failed to update embedding for chapter ${resolvedParams.chapterId}:`, embeddingError)
+        // Don't fail the request if embedding generation fails
+      }
+    }
     
     return NextResponse.json(chapter)
   } catch (error) {

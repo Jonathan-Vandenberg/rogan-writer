@@ -1,0 +1,201 @@
+/**
+ * AI Analysis API Endpoint
+ * 
+ * Handles AI-powered analysis requests for books to generate planning suggestions
+ */
+
+import { NextRequest } from 'next/server';
+import { AIOrchestrator } from '@/services/ai-orchestrator.service';
+import { aiEmbeddingService } from '@/services/ai-embedding.service';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
+
+interface AnalyzeRequest {
+  type: 'brainstorming' | 'characters' | 'plot' | 'full';
+  options?: {
+    generateEmbeddings?: boolean;
+    maxSuggestions?: number;
+    subplot?: string;
+  };
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ bookId: string }> }
+) {
+  try {
+    // Check authentication
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { bookId } = await params;
+    const body = await request.json() as AnalyzeRequest;
+    const { type, options = {} } = body;
+
+    // Verify user owns the book
+    const book = await prisma.book.findFirst({
+      where: {
+        id: bookId,
+        userId: session.user.id
+      }
+    });
+
+    if (!book) {
+      return Response.json({ error: 'Book not found or access denied' }, { status: 404 });
+    }
+
+    console.log(`Starting AI analysis for book ${bookId}, type: ${type}`);
+
+    // Generate embeddings if requested (useful for first-time setup)
+    if (options.generateEmbeddings) {
+      console.log('Generating embeddings for book content...');
+      try {
+        await aiEmbeddingService.generateBookEmbeddings(bookId);
+      } catch (embeddingError) {
+        console.warn('Embedding generation failed, continuing with analysis:', embeddingError);
+      }
+    }
+
+    // Initialize AI Orchestrator
+    const aiOrchestrator = new AIOrchestrator();
+
+    // Perform analysis based on type
+    switch (type) {
+      case 'brainstorming':
+        const brainstormingSuggestions = await aiOrchestrator.analyzeModule('brainstorming', bookId);
+        return Response.json({
+          type: 'brainstorming',
+          suggestions: brainstormingSuggestions.slice(0, options.maxSuggestions || 5),
+          metadata: {
+            analysisDate: new Date(),
+            suggestionCount: brainstormingSuggestions.length
+          }
+        });
+
+      case 'characters':
+        const characterSuggestions = await aiOrchestrator.analyzeModule('characters', bookId);
+        return Response.json({
+          type: 'characters',
+          suggestions: characterSuggestions.slice(0, options.maxSuggestions || 5),
+          metadata: {
+            analysisDate: new Date(),
+            suggestionCount: characterSuggestions.length
+          }
+        });
+
+      case 'plot':
+        const plotSuggestions = await aiOrchestrator.analyzeModule('plot', bookId, { subplot: options.subplot });
+        return Response.json({
+          type: 'plot',
+          suggestions: plotSuggestions.slice(0, options.maxSuggestions || 5),
+          metadata: {
+            analysisDate: new Date(),
+            suggestionCount: plotSuggestions.length,
+            subplot: options.subplot || 'main'
+          }
+        });
+
+      case 'full':
+        const fullAnalysis = await aiOrchestrator.comprehensiveAnalysis(bookId);
+        return Response.json({
+          type: 'full',
+          ...fullAnalysis
+        });
+
+      default:
+        return Response.json({ error: 'Invalid analysis type' }, { status: 400 });
+    }
+
+  } catch (error) {
+    console.error('AI analysis error:', error);
+    
+    // Return appropriate error message
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        return Response.json({ 
+          error: 'AI service configuration error. Please check API keys.' 
+        }, { status: 500 });
+      }
+      
+      if (error.message.includes('rate limit')) {
+        return Response.json({ 
+          error: 'AI service rate limit exceeded. Please try again later.' 
+        }, { status: 429 });
+      }
+    }
+
+    return Response.json({ 
+      error: 'Analysis failed. Please try again later.' 
+    }, { status: 500 });
+  }
+}
+
+// Support for testing the endpoint
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ bookId: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { bookId } = await params;
+
+    // Verify user owns the book
+    const book = await prisma.book.findFirst({
+      where: {
+        id: bookId,
+        userId: session.user.id
+      },
+      select: {
+        id: true,
+        title: true,
+        _count: {
+          select: {
+            chapters: true,
+            brainstormingNotes: true,
+            characters: true
+          }
+        }
+      }
+    });
+
+    if (!book) {
+      return Response.json({ error: 'Book not found or access denied' }, { status: 404 });
+    }
+
+    // Test vector search functionality
+    const vectorSearchTest = await aiEmbeddingService.testVectorSearch(bookId);
+
+    return Response.json({
+      message: 'AI Analysis endpoint is ready',
+      book: {
+        id: book.id,
+        title: book.title,
+        chapters: book._count.chapters,
+        brainstormingNotes: book._count.brainstormingNotes,
+        characters: book._count.characters
+      },
+      vectorSearchEnabled: vectorSearchTest,
+      availableAnalysisTypes: ['brainstorming', 'characters', 'full'],
+      usage: {
+        POST: 'Send { "type": "brainstorming" | "characters" | "full" } to analyze',
+        options: {
+          generateEmbeddings: 'Generate embeddings for content (first time setup)',
+          maxSuggestions: 'Limit number of suggestions returned'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('AI analysis endpoint test error:', error);
+    return Response.json({ 
+      error: 'Endpoint test failed', 
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}

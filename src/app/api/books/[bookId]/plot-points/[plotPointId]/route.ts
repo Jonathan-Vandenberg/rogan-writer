@@ -81,6 +81,18 @@ export async function PUT(
 
     const updatedPlotPoint = await PlotService.updatePlotPoint(resolvedParams.plotPointId, updateData)
     
+    // 🚀 AUTO-REGENERATE EMBEDDING if title or description changed
+    if (updateData.title !== undefined || updateData.description !== undefined) {
+      try {
+        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+        await aiEmbeddingService.updatePlotPointEmbedding(resolvedParams.plotPointId)
+        console.log(`✅ Updated embedding for plot point: ${resolvedParams.plotPointId}`)
+      } catch (embeddingError) {
+        console.error(`⚠️ Failed to update embedding for plot point ${resolvedParams.plotPointId}:`, embeddingError)
+        // Don't fail the request if embedding generation fails
+      }
+    }
+    
     return NextResponse.json(updatedPlotPoint)
   } catch (error) {
     console.error('Error updating plot point:', error)

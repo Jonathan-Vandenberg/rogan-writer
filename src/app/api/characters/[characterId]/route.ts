@@ -51,6 +51,16 @@ export async function PUT(
       imageUrl: data.imageUrl
     })
     
+    // 🚀 AUTO-REGENERATE EMBEDDING for character updates (all fields affect embedding)
+    try {
+      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+      await aiEmbeddingService.updateCharacterEmbedding(resolvedParams.characterId)
+      console.log(`✅ Updated embedding for character: ${resolvedParams.characterId}`)
+    } catch (embeddingError) {
+      console.error(`⚠️ Failed to update embedding for character ${resolvedParams.characterId}:`, embeddingError)
+      // Don't fail the request if embedding generation fails
+    }
+    
     return NextResponse.json(character)
   } catch (error) {
     console.error('Error updating character:', error)

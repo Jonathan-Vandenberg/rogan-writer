@@ -33,6 +33,7 @@ model User {
   books           Book[]
   writingSessions WritingSession[]
   exports         Export[]
+  researchSessions ResearchSession[]
 
   @@map("users")
 }
@@ -125,6 +126,12 @@ model Book {
   collaborators     BookCollaborator[]
   exports           Export[]
   versions          BookVersion[]
+  
+  // Research & Fact-checking (Non-fiction)
+  researchResults   ResearchResult[]
+  citations         Citation[]
+  factChecks        FactCheck[]
+  researchSessions  ResearchSession[]
 
   @@map("books")
 }
@@ -148,13 +155,24 @@ model Chapter {
   grammarScore     Float?
   readabilityScore Float?
   paceScore        Float?
-  // embedding        Unsupported("vector(1536)")? // AI embedding for context
+  embedding        Unsupported("vector(1536)")? // AI embedding for context
+
+  // Audio/Audiobook
+  audioUrl         String?   // S3 URL to the generated audio file
+  audioS3Key       String?   // S3 key for the audio file
+  audioDuration    Float?    // Duration in seconds
+  audioGenerated   DateTime? // When audio was generated
+  audioStatus      String    @default("not_generated") // not_generated, generating, completed, failed
+  audioError       String?   // Error message if generation failed
+  speakerName      String    @default("Alice") // Voice/speaker used for TTS
 
   // Relationships
   pages        Page[]
   sceneCards   SceneCard[]
   plotPoints   PlotPoint[]
   comments     Comment[]
+  citations    Citation[]
+  factChecks   FactCheck[]
 
   @@unique([bookId, orderIndex])
   @@map("chapters")
@@ -248,6 +266,7 @@ model Location {
   culture     String?
   rules       String?  // World-building rules
   imageUrl    String?
+  embedding   Unsupported("vector(1536)")? // AI embedding for semantic search
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -269,6 +288,7 @@ model PlotPoint {
   description String?
   orderIndex  Int
   completed   Boolean   @default(false)
+  embedding   Unsupported("vector(1536)")? // AI embedding for semantic search
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -295,6 +315,7 @@ model TimelineEvent {
   startTime   Int      // Start time unit (integer)
   endTime     Int      // End time unit (integer)
   orderIndex  Int
+  embedding   Unsupported("vector(1536)")? // AI embedding for semantic search
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -322,6 +343,7 @@ model SceneCard {
   orderIndex  Int
   wordCount   Int      @default(0)
   status      SceneStatus @default(PLANNED)
+  embedding   Unsupported("vector(1536)")? // AI embedding for semantic search
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -521,4 +543,134 @@ enum ExportStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ===== NON-FICTION RESEARCH & FACT-CHECKING =====
+
+enum ResearchSource {
+  WIKIPEDIA
+  SCHOLARLY
+  NEWS
+  GOVERNMENT
+  BOOKS
+  CUSTOM
+}
+
+enum CitationFormat {
+  APA
+  MLA
+  CHICAGO
+}
+
+enum FactCheckStatus {
+  VERIFIED
+  DISPUTED
+  UNCERTAIN
+  REQUIRES_REVIEW
+}
+
+// Store research results from external sources
+model ResearchResult {
+  id               String         @id @default(cuid())
+  bookId           String
+  query            String         @db.VarChar(500)
+  title            String         @db.VarChar(500)
+  summary          String?        @db.Text
+  content          String?        @db.Text
+  sourceType       ResearchSource
+  sourceUrl        String?        @db.VarChar(1000)
+  credibilityScore Int            @default(0)
+  authors          String[]       @default([])
+  tags             String[]       @default([])
+  imageUrl         String?        @db.VarChar(1000)
+  publishedAt      DateTime?
+  lastUpdated      DateTime       @default(now())
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  // AI embedding for semantic search
+  embedding        Unsupported("vector(1536)")?
+  
+  // Relationships
+  book             Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  citations        Citation[]
+  factChecks       FactCheck[]
+  
+  @@index([bookId])
+  @@index([sourceType])
+  @@index([credibilityScore])
+}
+
+// Manage citations and bibliography
+model Citation {
+  id               String          @id @default(cuid())
+  bookId           String
+  researchResultId String?
+  chapterId        String?
+  claimText        String?         @db.Text
+  format           CitationFormat
+  citationText     String          @db.Text
+  bibliographyEntry String         @db.Text
+  pageNumber       Int?
+  inlineLocation   String?         @db.VarChar(200) // e.g., "Chapter 3, paragraph 2"
+  notes            String?         @db.Text
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  
+  // Relationships
+  book             Book            @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  researchResult   ResearchResult? @relation(fields: [researchResultId], references: [id], onDelete: SetNull)
+  chapter          Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  
+  @@index([bookId])
+  @@index([format])
+  @@index([chapterId])
+}
+
+// Fact-checking results for claims
+model FactCheck {
+  id                    String           @id @default(cuid())
+  bookId                String
+  chapterId             String?
+  researchResultId      String?
+  claim                 String           @db.VarChar(1000)
+  status                FactCheckStatus
+  confidenceScore       Int              @default(0) // 0-100
+  verificationSources   Json             @default("[]") // Array of source URLs/titles
+  conflictingSources    Json?            @default("[]") // Sources that contradict
+  recommendations       String?          @db.Text
+  verifiedBy            String?          @db.VarChar(100) // e.g., "AI Assistant", "Manual Review"
+  reviewedAt            DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  // Relationships
+  book                  Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapter               Chapter?         @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  researchResult        ResearchResult?  @relation(fields: [researchResultId], references: [id], onDelete: SetNull)
+  
+  @@index([bookId])
+  @@index([status])
+  @@index([confidenceScore])
+}
+
+// Store research queries and sessions for analytics
+model ResearchSession {
+  id           String   @id @default(cuid())
+  bookId       String
+  userId       String
+  query        String   @db.VarChar(500)
+  resultsCount Int      @default(0)
+  sourcesUsed  String[] @default([]) // e.g., ["wikipedia", "scholarly"]
+  duration     Int?     // milliseconds
+  successful   Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  
+  // Relationships
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([bookId])
+  @@index([userId])
+  @@index([createdAt])
 } 

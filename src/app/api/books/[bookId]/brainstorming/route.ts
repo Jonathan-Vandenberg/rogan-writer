@@ -59,6 +59,16 @@ export async function POST(
       tags: tags || [],
       bookId: resolvedParams.bookId
     })
+
+    // 🚀 AUTO-GENERATE EMBEDDING for new brainstorming note
+    try {
+      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+      await aiEmbeddingService.updateBrainstormingEmbeddingById(note.id)
+      console.log(`✅ Generated embedding for brainstorming note: ${note.id}`)
+    } catch (embeddingError) {
+      console.error(`⚠️ Failed to generate embedding for brainstorming note ${note.id}:`, embeddingError)
+      // Don't fail the request if embedding generation fails
+    }
     
     return NextResponse.json(note)
   } catch (error) {

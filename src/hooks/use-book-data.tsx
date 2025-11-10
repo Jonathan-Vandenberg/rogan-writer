@@ -10,6 +10,7 @@ interface Chapter {
   content: string
   orderIndex: number
   wordCount: number
+  audioUrl?: string | null
 }
 
 interface PageData {
@@ -55,6 +56,7 @@ interface UseBookDataReturn {
   updateChapterContent: (chapterId: string, content: string) => Promise<void>
   updateChapterTitle: (chapterId: string, title: string) => Promise<void>
   createNewChapter: (bookId: string, title: string) => Promise<Chapter>
+  deleteChapter: (chapterId: string) => Promise<void>
   
   // Navigation
   setCurrentChapter: (chapterId: string) => void
@@ -417,6 +419,43 @@ export function useBookData(typographySettings?: TypographySettings): UseBookDat
     }
   }, [session?.user?.id])
 
+  // Delete chapter
+  const deleteChapter = React.useCallback(async (chapterId: string) => {
+    if (!session?.user?.id) return
+
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) throw new Error('Failed to delete chapter')
+
+      // Update local state - remove the deleted chapter
+      setBook(prevBook => {
+        if (!prevBook) return prevBook
+
+        const updatedChapters = prevBook.chapters.filter(chapter => chapter.id !== chapterId)
+        
+        // If the deleted chapter was the current one, switch to first chapter
+        const wasCurrentChapter = currentChapterId === chapterId
+        if (wasCurrentChapter && updatedChapters.length > 0) {
+          setCurrentChapterId(updatedChapters[0].id)
+          setCurrentPageNumber(1)
+        }
+
+        return {
+          ...prevBook,
+          chapters: updatedChapters
+        }
+      })
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete chapter')
+      console.error('Error deleting chapter:', err)
+      throw err // Re-throw so the UI can handle the error
+    }
+  }, [session?.user?.id, currentChapterId])
+
   // Navigation helpers
   const setCurrentChapter = React.useCallback((chapterId: string) => {
     setCurrentChapterId(chapterId)
@@ -449,6 +488,7 @@ export function useBookData(typographySettings?: TypographySettings): UseBookDat
     updateChapterContent,
     updateChapterTitle,
     createNewChapter,
+    deleteChapter,
     
     setCurrentChapter,
     setCurrentPage,

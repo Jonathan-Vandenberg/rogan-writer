@@ -4,6 +4,13 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -12,8 +19,12 @@ import {
   Book,
   FileText,
   Plus,
-  Edit3
+  Edit3,
+  MoreVertical,
+  Trash2,
+  Headphones
 } from "lucide-react"
+import { AudioPlayer } from "@/components/ui/audio-player"
 import { cn } from "@/lib/utils"
 
 interface PageNavigationProps {
@@ -22,11 +33,13 @@ interface PageNavigationProps {
   currentChapter: number
   totalChapters: number
   chapterTitle?: string
+  audioUrl?: string | null
   onPageChange: (page: number) => void
   onChapterChange: (chapter: number) => void
   onChapterTitleChange?: (title: string) => void
   onNewPage: () => void
   onNewChapter: () => void
+  onDeleteChapter?: (chapterIndex: number) => void
   className?: string
 }
 
@@ -36,11 +49,13 @@ export function PageNavigation({
   currentChapter,
   totalChapters,
   chapterTitle,
+  audioUrl,
   onPageChange,
   onChapterChange,
   onChapterTitleChange,
   onNewPage,
   onNewChapter,
+  onDeleteChapter,
   className
 }: PageNavigationProps) {
   const [pageInput, setPageInput] = React.useState(currentPage.toString())
@@ -121,15 +136,40 @@ export function PageNavigation({
             <span className="text-sm font-medium">Chapter</span>
           </div>
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onNewChapter}
-            className="h-7 px-2"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            New
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onNewChapter}
+              className="h-7 px-2"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              New
+            </Button>
+            
+            {onDeleteChapter && totalChapters > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                  >
+                    <MoreVertical className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                    onClick={() => onDeleteChapter(currentChapter)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Chapter
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center justify-center gap-2">
@@ -204,6 +244,18 @@ export function PageNavigation({
           </div>
         )}
       </div>
+
+      {/* Audio Player */}
+      {audioUrl && (
+        <div className="p-3 bg-card rounded-lg border border-border">
+          <div className="flex items-center gap-2 mb-3">
+            <Headphones className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Audio</span>
+          </div>
+          
+          <AudioPlayer audioUrl={audioUrl} />
+        </div>
+      )}
 
       {/* Page Navigation */}
       <div className="p-3 mt-6 bg-card rounded-lg border border-border">

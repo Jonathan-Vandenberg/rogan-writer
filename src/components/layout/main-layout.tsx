@@ -11,6 +11,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { useSelectedBook } from "@/contexts/selected-book-context"
+import AIBookChat from "@/components/ai-book-chat"
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -18,6 +20,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   const { data: session, status } = useSession()
+  const { selectedBookId } = useSelectedBook()
 
   // Show loading state while checking authentication
   if (status === "loading") {
@@ -47,6 +50,15 @@ export function MainLayout({ children }: MainLayoutProps) {
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-4" />
             <BookSelector />
+            {selectedBookId && (
+              <>
+                <AIBookChat 
+                  bookId={selectedBookId} 
+                  className="mr-2"
+                />
+                <Separator orientation="vertical" className="h-4" />
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <UserNav />

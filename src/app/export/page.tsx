@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Upload,
   Eye,
-  Trash2
+  Trash2,
+  Volume2
 } from "lucide-react"
 import { useSelectedBook } from "@/contexts/selected-book-context"
 import { cn } from "@/lib/utils"
@@ -83,6 +84,8 @@ export default function ExportPage() {
   const [exportStats, setExportStats] = React.useState<ExportStats | null>(null)
   const [isExporting, setIsExporting] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
+  const [audioChapters, setAudioChapters] = React.useState<any[]>([])
+  const [loadingAudio, setLoadingAudio] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   // Fetch export stats and recent exports
@@ -107,6 +110,31 @@ export default function ExportPage() {
 
     fetchExportData()
   }, [])
+
+  // Fetch audio chapters when book changes
+  React.useEffect(() => {
+    async function fetchAudioChapters() {
+      if (!selectedBookId) {
+        setAudioChapters([])
+        return
+      }
+
+      setLoadingAudio(true)
+      try {
+        const response = await fetch(`/api/books/${selectedBookId}/audiobook/generate`)
+        if (response.ok) {
+          const data = await response.json()
+          setAudioChapters(data.chapters || [])
+        }
+      } catch (error) {
+        console.error('Error fetching audio chapters:', error)
+      } finally {
+        setLoadingAudio(false)
+      }
+    }
+
+    fetchAudioChapters()
+  }, [selectedBookId])
 
   const handleProcessExport = async (exportId: string) => {
     try {
@@ -210,6 +238,67 @@ export default function ExportPage() {
     }
   }
 
+  const downloadChapterAudio = async (chapterId: string, chapterTitle: string) => {
+    try {
+      const response = await fetch(`/api/books/${selectedBookId}/chapters/${chapterId}/audio`)
+      const data = await response.json()
+
+      if (data.success && data.chapter.signedUrl) {
+        // Create a link and trigger download
+        const link = document.createElement('a')
+        link.href = data.chapter.signedUrl
+        link.download = `${chapterTitle}.mp3`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else {
+        alert('Audio not available for this chapter')
+      }
+    } catch (error) {
+      alert(`Failed to download audio: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  const downloadCompleteAudiobook = async () => {
+    if (!selectedBookId) return
+
+    // Check if all chapters have audio
+    const completedChapters = audioChapters.filter(ch => ch.audioStatus === 'completed')
+    if (completedChapters.length === 0) {
+      alert('No audio chapters available. Please generate audiobook first.')
+      return
+    }
+
+    if (completedChapters.length < audioChapters.length) {
+      if (!confirm(`Only ${completedChapters.length} of ${audioChapters.length} chapters have audio. Download available chapters?`)) {
+        return
+      }
+    }
+
+    try {
+      const response = await fetch(`/api/books/${selectedBookId}/audiobook/download`, {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `audiobook-${selectedBookId}.mp3`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      } else {
+        const data = await response.json()
+        alert(`Download failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      alert(`Failed to download audiobook: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
   const formatStatus = (status: string) => {
     return status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())
   }
@@ -298,6 +387,78 @@ export default function ExportPage() {
           </CardContent>
         </Card>
 
+        {/* Audiobook Downloads */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Volume2 className="h-5 w-5" />
+              Audiobook Downloads
+            </CardTitle>
+            <CardDescription>
+              Download individual chapters or the complete audiobook
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loadingAudio ? (
+              <div className="text-center py-4 text-muted-foreground">Loading audio status...</div>
+            ) : audioChapters.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                No chapters found. Please select a book.
+              </div>
+            ) : (
+              <>
+                {/* Download Complete Audiobook Button */}
+                <Button
+                  onClick={downloadCompleteAudiobook}
+                  disabled={!selectedBookId || audioChapters.filter(ch => ch.audioStatus === 'completed').length === 0}
+                  className="w-full"
+                  variant="default"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Complete Audiobook ({audioChapters.filter(ch => ch.audioStatus === 'completed').length} chapters)
+                </Button>
+
+                {/* Individual Chapter Downloads */}
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  <div className="text-sm font-medium mb-2">Individual Chapters:</div>
+                  {audioChapters.map((chapter) => (
+                    <div key={chapter.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <div className="font-medium">Chapter {chapter.orderIndex + 1}: {chapter.title}</div>
+                        {chapter.audioDuration && (
+                          <div className="text-sm text-muted-foreground">
+                            Duration: {Math.floor(chapter.audioDuration / 60)}m {Math.floor(chapter.audioDuration % 60)}s
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {chapter.audioStatus === 'completed' ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadChapterAudio(chapter.id, chapter.title)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Badge variant={
+                            chapter.audioStatus === 'generating' ? 'default' : 
+                            chapter.audioStatus === 'failed' ? 'destructive' : 
+                            'secondary'
+                          }>
+                            {formatStatus(chapter.audioStatus)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Recent Exports */}
       <Card>
         <CardHeader>
@@ -354,7 +515,6 @@ export default function ExportPage() {
           )}
         </CardContent>
       </Card>
-      </div>
     </div>
   )
 } 

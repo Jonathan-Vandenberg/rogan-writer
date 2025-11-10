@@ -50,6 +50,16 @@ export async function PUT(
       imageUrl: data.imageUrl
     })
     
+    // 🚀 AUTO-REGENERATE EMBEDDING for location updates (all fields affect embedding)
+    try {
+      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+      await aiEmbeddingService.updateLocationEmbedding(resolvedParams.locationId)
+      console.log(`✅ Updated embedding for location: ${resolvedParams.locationId}`)
+    } catch (embeddingError) {
+      console.error(`⚠️ Failed to update embedding for location ${resolvedParams.locationId}:`, embeddingError)
+      // Don't fail the request if embedding generation fails
+    }
+    
     return NextResponse.json(location)
   } catch (error) {
     console.error('Error updating location:', error)

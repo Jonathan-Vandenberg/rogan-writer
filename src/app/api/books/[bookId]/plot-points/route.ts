@@ -27,15 +27,15 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ bookId: string }> }
 ) {
+  const resolvedParams = await params
+  const data = await request.json()
+  
   try {
     const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const resolvedParams = await params
-    const data = await request.json()
     
     const plotPoint = await PlotService.createPlotPoint({
       type: data.type,
@@ -46,10 +46,28 @@ export async function POST(
       bookId: resolvedParams.bookId,
       chapterId: data.chapterId
     })
+
+    // 🚀 AUTO-GENERATE EMBEDDING for new plot point
+    try {
+      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+      await aiEmbeddingService.updatePlotPointEmbedding(plotPoint.id)
+      console.log(`✅ Generated embedding for plot point: ${plotPoint.id}`)
+    } catch (embeddingError) {
+      console.error(`⚠️ Failed to generate embedding for plot point ${plotPoint.id}:`, embeddingError)
+      // Don't fail the request if embedding generation fails
+    }
     
     return NextResponse.json(plotPoint, { status: 201 })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating plot point:', error)
+    
+    // Handle unique constraint violation (duplicate plot point)
+    if (error?.code === 'P2002' && error?.meta?.target?.includes('bookId')) {
+      return NextResponse.json({ 
+        error: `A plot point of type "${data.type}" already exists for the "${data.subplot}" subplot. Each subplot can only have one plot point per type.` 
+      }, { status: 409 })
+    }
+    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

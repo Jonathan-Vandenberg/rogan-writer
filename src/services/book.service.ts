@@ -23,6 +23,36 @@ export type BookWithDetails = Book & {
 }
 
 export class BookService {
+  /**
+   * Ensure user exists in database (for JWT + PrismaAdapter compatibility)
+   */
+  static async ensureUserExists(userData: {
+    id: string
+    email: string
+    name?: string
+    image?: string
+  }): Promise<void> {
+    try {
+      await prisma.user.upsert({
+        where: { id: userData.id },
+        update: {
+          // Only update if newer data is provided
+          name: userData.name || undefined,
+          image: userData.image || undefined,
+        },
+        create: {
+          id: userData.id,
+          email: userData.email,
+          name: userData.name || null,
+          image: userData.image || null,
+        }
+      })
+    } catch (error) {
+      console.error('Error ensuring user exists:', error)
+      throw error
+    }
+  }
+
   static async getBooksByUserId(userId: string): Promise<Book[]> {
     return await prisma.book.findMany({
       where: { userId },

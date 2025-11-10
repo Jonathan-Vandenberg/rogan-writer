@@ -107,6 +107,20 @@ export async function PUT(
 
     const updatedCard = await SceneCardService.updateSceneCard(resolvedParams.sceneCardId, updateData)
     
+    // 🚀 AUTO-REGENERATE EMBEDDING if title, description, purpose, conflict, or outcome changed
+    if (updateData.title !== undefined || updateData.description !== undefined || 
+        updateData.purpose !== undefined || updateData.conflict !== undefined || 
+        updateData.outcome !== undefined) {
+      try {
+        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
+        await aiEmbeddingService.updateSceneCardEmbedding(resolvedParams.sceneCardId)
+        console.log(`✅ Updated embedding for scene card: ${resolvedParams.sceneCardId}`)
+      } catch (embeddingError) {
+        console.error(`⚠️ Failed to update embedding for scene card ${resolvedParams.sceneCardId}:`, embeddingError)
+        // Don't fail the request if embedding generation fails
+      }
+    }
+    
     return NextResponse.json(updatedCard)
   } catch (error) {
     console.error('Error updating scene card:', error)

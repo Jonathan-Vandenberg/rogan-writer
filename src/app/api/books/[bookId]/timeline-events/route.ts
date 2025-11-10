@@ -1,84 +1,105 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { TimelineEventService } from '@/services'
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
-    const session = await auth()
-    
+    const { bookId } = await params;
+    const session = await auth();
+
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { bookId } = await params
-    const timelineEvents = await TimelineEventService.getTimelineEventsByBookId(bookId)
-    
-    return NextResponse.json(timelineEvents)
+    // Verify book ownership
+    const book = await prisma.book.findFirst({
+      where: {
+        id: bookId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!book) {
+      return NextResponse.json({ error: 'Book not found' }, { status: 404 });
+    }
+
+    const timelineEvents = await prisma.timelineEvent.findMany({
+      where: { bookId },
+      orderBy: { orderIndex: 'asc' },
+      include: {
+        character: true,
+        location: true,
+      },
+    });
+
+    return NextResponse.json(timelineEvents);
   } catch (error) {
-    console.error('Error fetching timeline events:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error fetching timeline events:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
-    const session = await auth()
-    
+    const { bookId } = await params;
+    const session = await auth();
+
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params
-    const data = await request.json()
-    console.log('Received timeline event data:', data)
-    
+    // Verify book ownership
+    const book = await prisma.book.findFirst({
+      where: {
+        id: bookId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!book) {
+      return NextResponse.json({ error: 'Book not found' }, { status: 404 });
+    }
+
+    const data = await request.json();
+
     // Validate required fields
-    if (!data.title?.trim()) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
-    }
-    
-    if (typeof data.startTime !== 'number' || data.startTime < 1) {
-      return NextResponse.json({ error: 'Valid startTime is required (must be >= 1)' }, { status: 400 })
-    }
-    
-    if (typeof data.endTime !== 'number' || data.endTime < 1) {
-      return NextResponse.json({ error: 'Valid endTime is required (must be >= 1)' }, { status: 400 })
-    }
-    
-    if (data.endTime < data.startTime) {
-      return NextResponse.json({ error: 'endTime must be >= startTime' }, { status: 400 })
+    if (!data.title) {
+      return NextResponse.json({ error: 'Timeline event title is required' }, { status: 400 });
     }
 
-    const timelineEvent = await TimelineEventService.createTimelineEvent({
-      title: data.title.trim(),
-      description: data.description?.trim() || null,
-      eventDate: data.eventDate?.trim() || null,
-      startTime: parseInt(data.startTime),
-      endTime: parseInt(data.endTime),
-      bookId: resolvedParams.bookId,
-      characterId: data.characterId || null,
-      locationId: data.locationId || null
-    })
-    
-    console.log('Created timeline event:', timelineEvent.id)
-    return NextResponse.json(timelineEvent, { status: 201 })
+    // Get next order index
+    const maxOrderIndex = await prisma.timelineEvent.findFirst({
+      where: { bookId },
+      orderBy: { orderIndex: 'desc' },
+      select: { orderIndex: true }
+    });
+
+    const nextOrderIndex = (maxOrderIndex?.orderIndex || 0) + 1;
+
+    // Create timeline event
+    const timelineEvent = await prisma.timelineEvent.create({
+      data: {
+        bookId,
+        title: data.title,
+        description: data.description || null,
+        eventDate: data.eventDate || null,
+        startTime: data.startTime || nextOrderIndex,
+        endTime: data.endTime || nextOrderIndex,
+        orderIndex: nextOrderIndex,
+        characterId: data.characterId || null,
+        locationId: data.locationId || null,
+      },
+    });
+
+    return NextResponse.json(timelineEvent, { status: 201 });
   } catch (error) {
-    console.error('Error creating timeline event:', error)
-    console.error('Error details:', {
-      name: (error as any)?.name,
-      message: (error as any)?.message,
-      code: (error as any)?.code,
-      meta: (error as any)?.meta
-    })
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? (error as any)?.message : undefined
-    }, { status: 500 })
+    console.error('Error creating timeline event:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-} 
+}

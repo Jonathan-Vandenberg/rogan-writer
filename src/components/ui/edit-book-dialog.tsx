@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ORGANIZED_GENRES } from "@/lib/genres"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, Settings, Loader2, Trash2 } from "lucide-react"
@@ -44,28 +45,7 @@ interface EditBookDialogProps {
   onBookDeleted?: () => void
 }
 
-const genres = [
-  "Fiction",
-  "Non-Fiction", 
-  "Fantasy",
-  "Science Fiction",
-  "Mystery",
-  "Thriller",
-  "Romance",
-  "Horror",
-  "Biography",
-  "Memoir",
-  "Self-Help",
-  "Business",
-  "History",
-  "Travel",
-  "Children's",
-  "Young Adult",
-  "Poetry",
-  "Drama",
-  "Comedy",
-  "Other"
-]
+// Genres are now imported from @/lib/genres for better organization and research targeting
 
 const bookStatuses = [
   { value: "DRAFT", label: "Draft" },
@@ -336,11 +316,21 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated, onBook
                     <SelectTrigger>
                       <SelectValue placeholder="Select a genre" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {genres.map((genre) => (
-                        <SelectItem key={genre} value={genre}>
-                          {genre}
-                        </SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {ORGANIZED_GENRES.map((category) => (
+                        <div key={category.category}>
+                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                            {category.category}
+                          </div>
+                          {category.genres.map((genre) => (
+                            <SelectItem key={genre.value} value={genre.value} className="pl-4">
+                              {genre.label}
+                            </SelectItem>
+                          ))}
+                          {category.category !== 'Creative & Other' && (
+                            <div className="border-b mx-2 my-1" />
+                          )}
+                        </div>
                       ))}
                     </SelectContent>
                   </Select>
