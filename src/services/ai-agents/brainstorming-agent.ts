@@ -1,7 +1,7 @@
 import { Chapter } from '@prisma/client';
 import { AIAgent } from './base-agent';
 import { prisma } from '@/lib/db';
-import { aiEmbeddingService } from '../ai-embedding.service';
+import { PlanningContextService } from '../planning-context.service';
 
 export interface BrainstormingSuggestion {
   id: string;
@@ -13,13 +13,19 @@ export interface BrainstormingSuggestion {
 }
 
 export class BrainstormingAgent extends AIAgent {
-  async analyze(chapters: Chapter[], bookId: string): Promise<BrainstormingSuggestion[]> {
+  // Override with extended signature and different return type
+  async analyze(
+    chapters: Chapter[], 
+    bookId: string, 
+    additionalContext?: any
+  ): Promise<any> {
+    // Extract parameters from additionalContext
+    const existingSuggestions = additionalContext?.existingSuggestions as Array<{ title: string; content: string }> | undefined;
+    const cachedContext = additionalContext?.cachedContext as string | null | undefined;
+    const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
     console.log('💡 Brainstorming Agent: Starting analysis...');
     
-    // Generate search query for brainstorming-related content
-    const searchQuery = `brainstorming ideas themes concepts plot development creative inspiration writing prompts`;
-    
-    // Get book details and ALL existing brainstorming notes with full details
+    // Get book details and ALL existing brainstorming notes
     const [book, allExistingNotes] = await Promise.all([
       prisma.book.findUnique({
         where: { id: bookId },
@@ -27,22 +33,33 @@ export class BrainstormingAgent extends AIAgent {
       }),
       prisma.brainstormingNote.findMany({
         where: { bookId },
-        select: { title: true, content: true, tags: true, createdAt: true }
+        select: { title: true, content: true, tags: true, createdAt: true },
+        orderBy: { createdAt: 'desc' }
       })
     ]);
 
-    // Use vector search to find content related to brainstorming concepts
-    const [relevantNotes, relevantCharacters] = await Promise.all([
-      aiEmbeddingService.findSimilarBrainstormingNotes(bookId, searchQuery, 20),
-      aiEmbeddingService.findSimilarCharacters(bookId, searchQuery, 15)
-    ]);
+    let planningContext: string;
+
+    // 💰 OPTIMIZATION: Use cached planning data if available
+    if (skipVectorSearch && cachedContext) {
+      console.log('💡 ⚡ Using CACHED planning context - skipping database fetch to save time!');
+      planningContext = cachedContext;
+    } else {
+      console.log('💡 📚 Fetching comprehensive planning data from database...');
+      // Fetch all planning data directly from database using shared service
+      planningContext = await PlanningContextService.buildPlanningContext(bookId);
+    }
     
-    const relevantContent = this.buildRelevantContentSummary(chapters, relevantNotes, relevantCharacters);
+    // Build DETAILED existing brainstorming context to avoid duplicates
+    // Include both saved notes AND suggestions from current session
+    const allExisting = [
+      ...allExistingNotes.map(note => ({ title: note.title, content: note.content, tags: note.tags })),
+      ...(existingSuggestions || []).map(s => ({ title: s.title, content: s.content, tags: [] }))
+    ];
     
-    // Simple list of existing content for AI to avoid
-    const existingBrainstormingList = allExistingNotes.length > 0 
-      ? allExistingNotes.map(note => `(${note.title}, ${note.content.substring(0, 100)}...)`).join(', ')
-      : 'None yet';
+    const existingBrainstormingList = allExisting.length > 0 
+      ? allExisting.map((item, i) => `${i + 1}. "${item.title}"\n   Synopsis: ${item.content.substring(0, 150)}...\n   Tags: ${item.tags?.join(', ') || 'none'}`).join('\n\n')
+      : 'None yet - fresh start!';
 
     const prompt = `
       Analyze this book and suggest NEW brainstorming topics that would enhance story development.
@@ -52,17 +69,18 @@ export class BrainstormingAgent extends AIAgent {
       Description: "${book?.description || 'No description provided'}"
       Genre: ${book?.genre || 'Not specified'}
 
-      RELEVANT CONTENT (from vector similarity search):
-      ${relevantContent}
+      COMPREHENSIVE PLANNING DATA (plots, timelines, characters, locations, brainstorms, scenes, research, chapter titles):
+      ${planningContext}
 
-      These are the current brainstorming topics, do not make suggestions based on these, create new ideas.
-      Current brainstorming topics: [${existingBrainstormingList}]
+      EXISTING BRAINSTORMING IDEAS (DO NOT DUPLICATE - CREATE COMPLETELY NEW IDEAS):
+      ${existingBrainstormingList}
 
       CRITICAL REQUIREMENTS:
-      1. **CREATE COMPLETELY NEW IDEAS**: Do not suggest anything similar to the existing topics listed above
-      2. **USE BOOK TITLE & DESCRIPTION AS PRIMARY SOURCE**: Base suggestions on the book's title, description, and genre
-      3. **FILL GAPS**: Look for unexplored areas and suggest topics for those gaps
-      4. **HIGH CONFIDENCE FOR BOOK-BASED SUGGESTIONS**: If suggestions are based on clear book concept, confidence should be 0.8-0.9
+      1. **AVOID ALL DUPLICATES**: Carefully review existing ideas above. Do NOT suggest anything similar in theme, topic, or approach
+      2. **USE ALL AVAILABLE CONTEXT**: Leverage chapters, characters, locations, plot points, timeline, scenes, and research to find gaps
+      3. **FILL STORY GAPS**: Identify unexplored areas, underdeveloped aspects, or missing elements
+      4. **BE SPECIFIC**: Reference actual content from the book (character names, locations, plot events)
+      5. **HIGH CONFIDENCE**: Base suggestions on actual book content (0.7-0.9 confidence)
 
       For each suggestion, provide:
       1. A compelling title (2-5 words)
@@ -125,67 +143,17 @@ export class BrainstormingAgent extends AIAgent {
       }));
 
       console.log(`💡 Brainstorming Agent: Generated ${brainstormingSuggestions.length} unique suggestions (duplicates avoided at generation time)`);
-      return brainstormingSuggestions;
+      return {
+        suggestions: brainstormingSuggestions,
+        context: planningContext // Return planning context for caching
+      };
     } catch (error) {
       console.error('Brainstorming Agent error:', error);
-      return [];
+      return {
+        suggestions: [],
+        context: planningContext || ''
+      };
     }
   }
 
-  /**
-   * Build comprehensive context of existing brainstorming content
-   */
-  private buildExistingContentContext(existingNotes: any[]): string {
-    if (existingNotes.length === 0) {
-      return 'No existing brainstorming content yet - you have a blank canvas!';
-    }
-
-    const existingContent = existingNotes
-      .map((note, index) => 
-        `${index + 1}. "${note.title}"\n   Content: ${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}\n   Tags: ${note.tags?.join(', ') || 'None'}`
-      )
-      .join('\n\n');
-
-    return `EXISTING BRAINSTORMING TOPICS (${existingNotes.length} total):\n${existingContent}`;
-  }
-
-  /**
-   * Build a focused content summary from vector search results
-   */
-  private buildRelevantContentSummary(
-    chapters: Chapter[], 
-    relevantNotes: any[], 
-    relevantCharacters: any[]
-  ): string {
-    const parts: string[] = [];
-
-    // Add brief chapter summary
-    if (chapters.length > 0) {
-      const chapterSummary = chapters
-        .slice(0, 3)
-        .map(ch => `Chapter ${ch.orderIndex + 1}: ${ch.title}`)
-        .join(', ');
-      parts.push(`Chapters: ${chapterSummary}${chapters.length > 3 ? ` (and ${chapters.length - 3} more)` : ''}`);
-    }
-
-    // Add relevant brainstorming notes
-    if (relevantNotes.length > 0) {
-      const notesSummary = relevantNotes
-        .map(note => `"${note.title}": ${note.content.substring(0, 150)}${note.content.length > 150 ? '...' : ''}`)
-        .join('\n');
-      parts.push(`Related Ideas:\n${notesSummary}`);
-    }
-
-    // Add relevant characters
-    if (relevantCharacters.length > 0) {
-      const charactersSummary = relevantCharacters
-        .map(char => `${char.name}: ${char.description?.substring(0, 100) || 'No description'}${char.description && char.description.length > 100 ? '...' : ''}`)
-        .join('\n');
-      parts.push(`Related Characters:\n${charactersSummary}`);
-    }
-
-    return parts.length > 0 
-      ? parts.join('\n\n') 
-      : 'No relevant content found. Base suggestions on book title and description.';
-  }
 }

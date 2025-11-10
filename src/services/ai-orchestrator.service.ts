@@ -124,7 +124,8 @@ export class AIOrchestrator {
       // Dispatch to appropriate agent
       switch (type) {
         case 'brainstorming':
-          return await this.brainstormingAgent.analyze(chapters, bookId);
+          // BrainstormingAgent returns { suggestions, context } instead of array
+          return await this.brainstormingAgent.analyze(chapters, bookId, additionalContext);
           
         case 'characters':
           return await this.characterAgent.analyze(chapters, bookId);

@@ -16,6 +16,9 @@ interface AnalyzeRequest {
     generateEmbeddings?: boolean;
     maxSuggestions?: number;
     subplot?: string;
+    existingSuggestions?: Array<{ title: string; content: string }>;
+    cachedContext?: string | null;
+    skipVectorSearch?: boolean;
   };
 }
 
@@ -64,13 +67,23 @@ export async function POST(
     // Perform analysis based on type
     switch (type) {
       case 'brainstorming':
-        const brainstormingSuggestions = await aiOrchestrator.analyzeModule('brainstorming', bookId);
+        const brainstormingResult = await aiOrchestrator.analyzeModule(
+          'brainstorming', 
+          bookId, 
+          { 
+            existingSuggestions: options.existingSuggestions || [],
+            cachedContext: options.cachedContext,
+            skipVectorSearch: options.skipVectorSearch
+          }
+        ) as unknown as { suggestions: any[], context: string };
         return Response.json({
           type: 'brainstorming',
-          suggestions: brainstormingSuggestions.slice(0, options.maxSuggestions || 5),
+          suggestions: brainstormingResult.suggestions.slice(0, options.maxSuggestions || 5),
+          context: brainstormingResult.context, // Return context for caching
           metadata: {
             analysisDate: new Date(),
-            suggestionCount: brainstormingSuggestions.length
+            suggestionCount: brainstormingResult.suggestions.length,
+            usedCache: options.skipVectorSearch || false
           }
         });
 

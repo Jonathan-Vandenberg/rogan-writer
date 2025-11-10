@@ -24,19 +24,126 @@ interface AISuggestionsProps {
   className?: string;
 }
 
+// Redis-based caching utilities
+
+// Generate a simple hash of book content to detect changes
+async function getBookContentHash(bookId: string): Promise<string> {
+  try {
+    const response = await fetch(`/api/books/${bookId}/content-hash`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.hash;
+    }
+  } catch (error) {
+    console.warn('Could not fetch content hash');
+  }
+  return Date.now().toString(); // Fallback to timestamp
+}
+
+// Utility to clear cache for a specific book (call this when book content changes)
+export async function clearBrainstormingCache(bookId: string) {
+  try {
+    await fetch(`/api/books/${bookId}/brainstorm-cache`, { method: 'DELETE' });
+    console.log('🗑️ Cleared brainstorming cache for book:', bookId);
+  } catch (error) {
+    console.error('Failed to clear cache:', error);
+  }
+}
+
 export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISuggestionsProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
   const [suggestions, setSuggestions] = React.useState<BrainstormingSuggestion[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const [acceptedSuggestions, setAcceptedSuggestions] = React.useState<Set<string>>(new Set())
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null)
+  
+  // Get cached context from Redis, checking content hash
+  const getCachedContext = async () => {
+    console.log('🔍 Checking Redis cache for bookId:', bookId);
+    
+    try {
+      const response = await fetch(`/api/books/${bookId}/brainstorm-cache`);
+      if (!response.ok) {
+        console.log('❌ No Redis cache found');
+        return null;
+      }
 
-  const handleAnalyze = async () => {
+      const data = await response.json();
+      if (!data.cached) {
+        console.log('❌ No cache entry found for this book');
+        return null;
+      }
+
+      console.log('✓ Redis cache entry found! Age:', data.age, 'seconds');
+      
+      // Check if book content has changed
+      const currentHash = await getBookContentHash(bookId);
+      console.log('🔑 Hash check - Cached:', data.contentHash.substring(0, 8), '| Current:', currentHash.substring(0, 8));
+      
+      if (data.contentHash !== currentHash) {
+        console.log('🔄 Book content changed - invalidating cache');
+        await fetch(`/api/books/${bookId}/brainstorm-cache`, { method: 'DELETE' });
+        return null;
+      }
+      
+      console.log('✓ Content hash matches!');
+      console.log('📦 Retrieved cached context from Redis (age:', data.age, 'seconds)');
+      return data.context;
+    } catch (error) {
+      console.error('Error fetching Redis cache:', error);
+      return null;
+    }
+  };
+  
+  const setCachedContext = async (context: string) => {
+    const contentHash = await getBookContentHash(bookId);
+    try {
+      await fetch(`/api/books/${bookId}/brainstorm-cache`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context, contentHash })
+      });
+      console.log('💾 Cached context in Redis (hash:', contentHash.substring(0, 8) + ')');
+    } catch (error) {
+      console.error('Error caching to Redis:', error);
+    }
+  };
+
+  const handleAnalyze = async (isAnalyzeMore = false) => {
     setIsAnalyzing(true)
     setError(null)
-    setSuggestions([])
+    
+    // Only clear suggestions if it's the first analysis
+    if (!isAnalyzeMore) {
+      setSuggestions([])
+    }
 
     try {
+      // Include existing suggestions in the request to avoid duplicates
+      const existingSuggestions = suggestions.map(s => ({
+        title: s.title,
+        content: s.content.substring(0, 150)
+      }))
+
+      // Check global cache first (async now due to content hash check)
+      const cachedContext = await getCachedContext();
+      const willUseCache = cachedContext !== null;
+      
+      if (willUseCache) {
+        console.log('✅ USING GLOBAL CACHE - Skipping expensive vector search!');
+      } else {
+        console.log('❌ NO CACHE - Will perform full vector search');
+      }
+      
+      console.log(`🔄 Analysis request:`, {
+        isAnalyzeMore,
+        hasCachedContext: cachedContext !== null,
+        cacheAge: cachedContext ? 'from global cache' : 'none',
+        willSkipVectorSearch: willUseCache,
+        existingSuggestionsCount: existingSuggestions.length
+      });
+
       const response = await fetch(`/api/books/${bookId}/ai-analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +151,9 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
           type: 'brainstorming',
           options: {
             maxSuggestions: 5,
-            generateEmbeddings: true // Generate embeddings for better future analysis
+            existingSuggestions: isAnalyzeMore ? existingSuggestions : [],
+            cachedContext: cachedContext, // Always pass cached context if available
+            skipVectorSearch: willUseCache // Skip expensive database fetch if we have cache
           }
         })
       })
@@ -55,10 +164,46 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
       }
 
       const data = await response.json()
-      setSuggestions(data.suggestions || [])
+      
+      console.log('📥 Received response:', {
+        isAnalyzeMore,
+        hasContext: !!data.context,
+        contextLength: data.context?.length,
+        suggestionsCount: data.suggestions?.length,
+        usedCache: data.metadata?.usedCache
+      });
+      
+      // Always save context if it's returned (either fresh or updated)
+      if (data.context && !data.metadata?.usedCache) {
+        console.log('💾 Saving fresh planning context to Redis...');
+        await setCachedContext(data.context);
+        console.log('✅ Context saved to Redis successfully');
+      } else if (data.metadata?.usedCache) {
+        console.log('⚡ Used cached context - saved time & money!');
+      } else {
+        console.log('⚠️ No context to save:', { hasContext: !!data.context, usedCache: data.metadata?.usedCache });
+      }
+      
+      if (isAnalyzeMore) {
+        // Append new suggestions to the bottom
+        setSuggestions(prev => [...prev, ...(data.suggestions || [])])
+        // Scroll to bottom after state updates
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({
+              top: scrollContainerRef.current.scrollHeight,
+              behavior: 'smooth'
+            })
+          }
+        }, 100)
+      } else {
+        setSuggestions(data.suggestions || [])
+      }
       
       if (data.suggestions?.length === 0) {
-        setError('No suggestions were generated. Try adding more content to your book chapters.')
+        setError(isAnalyzeMore 
+          ? 'No additional suggestions could be generated. The AI has explored all available ideas.'
+          : 'No suggestions were generated. Try adding more content to your book chapters.')
       }
     } catch (error) {
       console.error('AI analysis error:', error)
@@ -116,12 +261,18 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className={cn("gap-2", className)} onClick={() => setIsOpen(true)}>
+        <Button variant="outline" className={cn("gap-2", className)} onClick={() => {
+          console.log('Opening AI Suggestions modal, isAnalyzing:', isAnalyzing);
+          setIsOpen(true);
+        }}>
           <Sparkles className="h-4 w-4" />
           AI Suggestions
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent 
+        className="!max-w-none max-h-[90vh] flex flex-col" 
+        style={{ width: '70vw', maxWidth: 'none' }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-purple-500" />
@@ -132,7 +283,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto space-y-4">
           {!isAnalyzing && suggestions.length === 0 && !error && (
             <Card className="text-center py-8">
               <CardContent>
@@ -141,7 +292,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
                 <p className="text-muted-foreground mb-4">
                   Click "Analyze Book" to get AI-powered brainstorming suggestions based on your chapters
                 </p>
-                <Button onClick={handleAnalyze} className="gap-2">
+                <Button onClick={() => handleAnalyze(false)} className="gap-2">
                   <Sparkles className="h-4 w-4" />
                   Analyze Book
                 </Button>
@@ -150,13 +301,20 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
           )}
 
           {isAnalyzing && (
-            <Card className="text-center py-8">
+            <Card className="text-center py-12">
               <CardContent>
-                <Loader2 className="h-8 w-8 animate-spin text-purple-500 mx-auto mb-4" />
+                <div className="relative inline-block mb-6">
+                  <Brain className="h-16 w-16 text-purple-500 mx-auto animate-pulse" />
+                </div>
                 <h3 className="text-lg font-semibold mb-2">Analyzing Your Book</h3>
-                <p className="text-muted-foreground">
-                  AI is reading your chapters and generating brainstorming suggestions...
+                <p className="text-muted-foreground mb-4">
+                  Exploring comprehensive context across chapters, characters, locations, plot, timeline, scenes, and research...
                 </p>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="h-2 w-2 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="h-2 w-2 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="h-2 w-2 bg-purple-500 rounded-full animate-bounce"></div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -169,7 +327,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
                   <div>
                     <h3 className="font-semibold text-red-800 mb-1">Analysis Failed</h3>
                     <p className="text-red-700 text-sm mb-3">{error}</p>
-                    <Button variant="outline" size="sm" onClick={handleAnalyze}>
+                    <Button variant="outline" size="sm" onClick={() => handleAnalyze(false)}>
                       Try Again
                     </Button>
                   </div>
@@ -265,14 +423,28 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
           )}
         </div>
 
-        {!isAnalyzing && suggestions.length > 0 && remainingSuggestions.length > 0 && (
+        {suggestions.length > 0 && remainingSuggestions.length > 0 && (
           <div className="flex items-center justify-between pt-4 border-t">
-            <Button variant="outline" onClick={handleAnalyze} className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              Analyze Again
+            <Button 
+              variant="outline" 
+              onClick={() => handleAnalyze(true)} 
+              disabled={isAnalyzing}
+              className="gap-2"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Analyze More
+                </>
+              )}
             </Button>
             <div className="text-sm text-muted-foreground">
-              {remainingSuggestions.length} suggestions remaining
+              {remainingSuggestions.length} suggestions generated
             </div>
           </div>
         )}
