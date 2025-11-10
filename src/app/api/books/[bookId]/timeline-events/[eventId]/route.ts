@@ -102,14 +102,28 @@ export async function PUT(
 
     const updatedEvent = await TimelineEventService.updateTimelineEvent(resolvedParams.eventId, updateData)
     
-    // 🚀 AUTO-REGENERATE EMBEDDING if title or description changed
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE if title or description changed
     if (updateData.title !== undefined || updateData.description !== undefined) {
       try {
-        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-        await aiEmbeddingService.updateTimelineEventEmbedding(resolvedParams.eventId)
-        console.log(`✅ Updated embedding for timeline event: ${resolvedParams.eventId}`)
+        const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+        
+        const content = [
+          `Timeline Event: ${updatedEvent.title}`,
+          updatedEvent.eventDate ? `Date: ${updatedEvent.eventDate}` : '',
+          `Time: ${updatedEvent.startTime} - ${updatedEvent.endTime}`,
+          updatedEvent.description || ''
+        ].filter(Boolean).join('\n\n');
+        
+        await unifiedEmbeddingService.updateSourceEmbeddings({
+          bookId: updatedEvent.bookId,
+          sourceType: 'timeline',
+          sourceId: updatedEvent.id,
+          content,
+          metadata: { title: updatedEvent.title, eventDate: updatedEvent.eventDate, startTime: updatedEvent.startTime, endTime: updatedEvent.endTime }
+        })
+        console.log(`✅ Updated unified embeddings for timeline event: ${updatedEvent.title}`)
       } catch (embeddingError) {
-        console.error(`⚠️ Failed to update embedding for timeline event ${resolvedParams.eventId}:`, embeddingError)
+        console.error(`⚠️ Failed to update unified embeddings for timeline event ${resolvedParams.eventId}:`, embeddingError)
         // Don't fail the request if embedding generation fails
       }
     }

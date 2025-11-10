@@ -82,11 +82,33 @@ export async function POST(
 
     console.log(`✅ Complete audiobook ready: ${(concatenatedAudio.length / 1024 / 1024).toFixed(2)} MB`)
 
+    // Create export record for tracking
+    // Use book title as filename (sanitized)
+    const sanitizedTitle = book.title.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_')
+    const fileName = `${sanitizedTitle}.mp3`
+    
+    try {
+      await prisma.export.create({
+        data: {
+          userId: session.user.id,
+          bookId: book.id,
+          format: 'MP3',
+          fileName: fileName,
+          status: 'COMPLETED',
+          fileUrl: null, // Direct download, not stored
+        }
+      })
+      console.log(`📝 Export record created for audiobook: ${fileName}`)
+    } catch (error) {
+      console.error('Failed to create export record:', error)
+      // Don't fail the download if export record creation fails
+    }
+
     // Return the concatenated audio file
     return new NextResponse(concatenatedAudio, {
       headers: {
         'Content-Type': 'audio/mpeg',
-        'Content-Disposition': `attachment; filename="${book.title.replace(/[^a-z0-9]/gi, '_')}_audiobook.mp3"`,
+        'Content-Disposition': `attachment; filename="${fileName}"`,
         'Content-Length': concatenatedAudio.length.toString(),
       },
     })

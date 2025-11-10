@@ -45,13 +45,27 @@ export async function PUT(
     if (data.content !== undefined) {
       const chapter = await ChapterService.updateChapterContent(resolvedParams.chapterId, data.content)
       
-      // 🚀 AUTO-REGENERATE EMBEDDING for updated chapter content
+      // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE for chapter content
       try {
-        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-        await aiEmbeddingService.updateChapterEmbedding(resolvedParams.chapterId)
-        console.log(`✅ Updated embedding for chapter: ${resolvedParams.chapterId}`)
+        const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+        const fullChapter = await ChapterService.getChapterById(resolvedParams.chapterId)
+        
+        if (fullChapter) {
+          await unifiedEmbeddingService.updateSourceEmbeddings({
+            bookId: fullChapter.bookId,
+            sourceType: 'chapter',
+            sourceId: fullChapter.id,
+            content: `Chapter ${fullChapter.orderIndex + 1}: ${fullChapter.title}\n\n${fullChapter.content}`,
+            metadata: { 
+              title: fullChapter.title, 
+              orderIndex: fullChapter.orderIndex, 
+              chapterNumber: fullChapter.orderIndex + 1 
+            }
+          })
+          console.log(`✅ Updated unified embeddings for chapter: ${fullChapter.title}`)
+        }
       } catch (embeddingError) {
-        console.error(`⚠️ Failed to update embedding for chapter ${resolvedParams.chapterId}:`, embeddingError)
+        console.error(`⚠️ Failed to update unified embeddings for chapter ${resolvedParams.chapterId}:`, embeddingError)
         // Don't fail the request if embedding generation fails
       }
       
@@ -65,14 +79,28 @@ export async function PUT(
       orderIndex: data.orderIndex
     })
     
-    // 🚀 AUTO-REGENERATE EMBEDDING if title or description changed (part of embedding content)
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE if title or description changed
     if (data.title !== undefined || data.description !== undefined) {
       try {
-        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-        await aiEmbeddingService.updateChapterEmbedding(resolvedParams.chapterId)
-        console.log(`✅ Updated embedding for chapter: ${resolvedParams.chapterId} (title/description change)`)
+        const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+        const fullChapter = await ChapterService.getChapterById(resolvedParams.chapterId)
+        
+        if (fullChapter) {
+          await unifiedEmbeddingService.updateSourceEmbeddings({
+            bookId: fullChapter.bookId,
+            sourceType: 'chapter',
+            sourceId: fullChapter.id,
+            content: `Chapter ${fullChapter.orderIndex + 1}: ${fullChapter.title}\n\n${fullChapter.content}`,
+            metadata: { 
+              title: fullChapter.title, 
+              orderIndex: fullChapter.orderIndex, 
+              chapterNumber: fullChapter.orderIndex + 1 
+            }
+          })
+          console.log(`✅ Updated unified embeddings for chapter: ${fullChapter.title} (metadata change)`)
+        }
       } catch (embeddingError) {
-        console.error(`⚠️ Failed to update embedding for chapter ${resolvedParams.chapterId}:`, embeddingError)
+        console.error(`⚠️ Failed to update unified embeddings for chapter ${resolvedParams.chapterId}:`, embeddingError)
         // Don't fail the request if embedding generation fails
       }
     }

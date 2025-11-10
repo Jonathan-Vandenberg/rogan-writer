@@ -33,6 +33,7 @@ export function BookSelector() {
   const fetchBooks = React.useCallback(async () => {
     try {
       const response = await fetch('/api/books')
+      
       if (response.ok) {
         const booksData = await response.json()
         setBooks(booksData)
@@ -92,7 +93,8 @@ export function BookSelector() {
     )
   }
 
-  if (!selectedBook || books.length === 0) {
+  // Only show "Create Book" button if there are no books at all
+  if (books.length === 0) {
     return (
       <>
         <Button 
@@ -115,6 +117,9 @@ export function BookSelector() {
       </>
     )
   }
+  
+  // If we have books but no selected book, show first book or placeholder
+  const displayBook = selectedBook || books[0]
 
   return (
     <>
@@ -127,7 +132,7 @@ export function BookSelector() {
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <BookOpen className="h-4 w-4 shrink-0" />
-              <span className="truncate">{selectedBook.title}</span>
+              <span className="truncate">{displayBook.title}</span>
             </div>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -144,7 +149,7 @@ export function BookSelector() {
               <Check
                 className={cn(
                   "mr-2 h-4 w-4",
-                  selectedBook?.id === book.id ? "opacity-100" : "opacity-0"
+                  displayBook.id === book.id ? "opacity-100" : "opacity-0"
                 )}
               />
               <div className="flex flex-col gap-1">

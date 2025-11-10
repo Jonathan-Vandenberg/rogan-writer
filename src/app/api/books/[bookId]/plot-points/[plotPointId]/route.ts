@@ -81,14 +81,23 @@ export async function PUT(
 
     const updatedPlotPoint = await PlotService.updatePlotPoint(resolvedParams.plotPointId, updateData)
     
-    // 🚀 AUTO-REGENERATE EMBEDDING if title or description changed
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE if title or description changed
     if (updateData.title !== undefined || updateData.description !== undefined) {
       try {
-        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-        await aiEmbeddingService.updatePlotPointEmbedding(resolvedParams.plotPointId)
-        console.log(`✅ Updated embedding for plot point: ${resolvedParams.plotPointId}`)
+        const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+        
+        const content = `Plot Point: ${updatedPlotPoint.title}\nType: ${updatedPlotPoint.type}\n\n${updatedPlotPoint.description || ''}`;
+        
+        await unifiedEmbeddingService.updateSourceEmbeddings({
+          bookId: updatedPlotPoint.bookId,
+          sourceType: 'plotPoint',
+          sourceId: updatedPlotPoint.id,
+          content,
+          metadata: { title: updatedPlotPoint.title, type: updatedPlotPoint.type, orderIndex: updatedPlotPoint.orderIndex }
+        })
+        console.log(`✅ Updated unified embeddings for plot point: ${updatedPlotPoint.title}`)
       } catch (embeddingError) {
-        console.error(`⚠️ Failed to update embedding for plot point ${resolvedParams.plotPointId}:`, embeddingError)
+        console.error(`⚠️ Failed to update unified embeddings for plot point ${resolvedParams.plotPointId}:`, embeddingError)
         // Don't fail the request if embedding generation fails
       }
     }

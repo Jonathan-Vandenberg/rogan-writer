@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { MessageCircle, Send, Loader2, Bot, User } from 'lucide-react'
+import { MessageCircle, Send, Loader2, Bot, User, BookOpen, Lightbulb, Target, Users, MapPin, Calendar, Bookmark, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -16,7 +16,25 @@ interface ChatMessage {
   content: string
   timestamp: Date
   contextUsed?: {
+    totalChunks: number
     chapters: number
+    characters: number
+    locations: number
+    plotPoints: number
+    timeline: number
+    brainstorming: number
+    scenes: number
+    research: number
+  }
+  sources?: {
+    chapters: Array<{ title: string; chapterNumber: number; similarity: number }>
+    characters: Array<{ name: string; role: string; similarity: number }>
+    locations: Array<{ name: string; similarity: number }>
+    plotPoints: Array<{ title: string; type: string; similarity: number }>
+    timeline: Array<{ title: string; eventDate: string; similarity: number }>
+    brainstorming: Array<{ title: string; tags: string[]; similarity: number }>
+    scenes: Array<{ title: string; similarity: number }>
+    research: Array<{ title: string; similarity: number }>
   }
 }
 
@@ -95,7 +113,8 @@ export default function AIBookChat({ bookId, bookTitle, className }: AIBookChatP
         role: 'assistant',
         content: data.response,
         timestamp: new Date(),
-        contextUsed: data.contextUsed
+        contextUsed: data.contextUsed,
+        sources: data.sources
       }
 
       setMessages(prev => [...prev, aiMessage])
@@ -125,9 +144,67 @@ export default function AIBookChat({ bookId, bookTitle, className }: AIBookChatP
     if (!contextUsed) return null
 
     const parts = []
-    if (contextUsed.chapters > 0) parts.push(`${contextUsed.chapters} chapters`)
+    if (contextUsed.chapters > 0) parts.push(`${contextUsed.chapters} chapter${contextUsed.chapters > 1 ? 's' : ''}`)
+    if (contextUsed.characters > 0) parts.push(`${contextUsed.characters} character${contextUsed.characters > 1 ? 's' : ''}`)
+    if (contextUsed.locations > 0) parts.push(`${contextUsed.locations} location${contextUsed.locations > 1 ? 's' : ''}`)
+    if (contextUsed.plotPoints > 0) parts.push(`${contextUsed.plotPoints} plot point${contextUsed.plotPoints > 1 ? 's' : ''}`)
+    if (contextUsed.timeline > 0) parts.push(`${contextUsed.timeline} timeline event${contextUsed.timeline > 1 ? 's' : ''}`)
+    if (contextUsed.brainstorming > 0) parts.push(`${contextUsed.brainstorming} idea${contextUsed.brainstorming > 1 ? 's' : ''}`)
+    if (contextUsed.scenes > 0) parts.push(`${contextUsed.scenes} scene${contextUsed.scenes > 1 ? 's' : ''}`)
+    if (contextUsed.research > 0) parts.push(`${contextUsed.research} research${contextUsed.research > 1 ? ' items' : ' item'}`)
 
     return parts.length > 0 ? `Used: ${parts.join(', ')}` : null
+  }
+
+  const getSourceIcon = (type: string) => {
+    switch (type) {
+      case 'Chapter': return <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+      case 'Character': return <Users className="w-3.5 h-3.5 text-purple-500" />
+      case 'Location': return <MapPin className="w-3.5 h-3.5 text-red-500" />
+      case 'Plot': return <Target className="w-3.5 h-3.5 text-pink-500" />
+      case 'Timeline': return <Calendar className="w-3.5 h-3.5 text-orange-500" />
+      case 'Idea': return <Lightbulb className="w-3.5 h-3.5 text-yellow-500" />
+      case 'Scene': return <Bookmark className="w-3.5 h-3.5 text-green-500" />
+      case 'Research': return <FileText className="w-3.5 h-3.5 text-indigo-500" />
+      default: return <FileText className="w-3.5 h-3.5 text-gray-500" />
+    }
+  }
+
+  const renderSources = (sources: ChatMessage['sources']) => {
+    if (!sources) return null
+    
+    const allSources = [
+      ...sources.chapters.map(s => ({ type: 'Chapter', name: `Ch. ${s.chapterNumber}: ${s.title}`, similarity: s.similarity })),
+      ...sources.characters.map(s => ({ type: 'Character', name: s.name, similarity: s.similarity })),
+      ...sources.locations.map(s => ({ type: 'Location', name: s.name, similarity: s.similarity })),
+      ...sources.plotPoints.map(s => ({ type: 'Plot', name: s.title, similarity: s.similarity })),
+      ...sources.timeline.map(s => ({ type: 'Timeline', name: s.title, similarity: s.similarity })),
+      ...sources.brainstorming.map(s => ({ type: 'Idea', name: s.title, similarity: s.similarity })),
+      ...sources.scenes.map(s => ({ type: 'Scene', name: s.title, similarity: s.similarity })),
+      ...sources.research.map(s => ({ type: 'Research', name: s.title, similarity: s.similarity })),
+    ].sort((a, b) => b.similarity - a.similarity).slice(0, 8) // Top 8 sources
+    
+    if (allSources.length === 0) return null
+    
+    return (
+      <div className="mt-3 pt-3 border-t border-border/50">
+        <p className="text-xs font-medium text-muted-foreground mb-2">Sources used:</p>
+        <div className="flex flex-wrap gap-1.5">
+          {allSources.map((source, idx) => (
+            <div 
+              key={idx}
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-background/50 border border-border/50 text-xs"
+              title={`${source.type}: ${source.name} (${(source.similarity * 100).toFixed(1)}% match)`}
+            >
+              <span className="flex-shrink-0">
+                {getSourceIcon(source.type)}
+              </span>
+              <span className="text-muted-foreground truncate max-w-[200px]">{source.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -193,22 +270,25 @@ export default function AIBookChat({ bookId, bookTitle, className }: AIBookChatP
                     {message.role === 'user' ? (
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                     ) : (
-                      <div className="prose prose-sm dark:prose-invert max-w-none 
-                        prose-p:my-3 prose-p:leading-relaxed
-                        prose-headings:mt-4 prose-headings:mb-2
-                        prose-ul:my-2 prose-ol:my-2
-                        prose-li:my-1">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm, remarkBreaks]}
-                          components={{
-                            // Custom paragraph component to handle line breaks properly
-                            p: ({ children }) => <p className="mb-2">{children}</p>,
-                            br: () => <br className="my-1" />
-                          }}
-                        >
-                          {message.content.replace(/\\n/g, '\n')}
-                        </ReactMarkdown>
-                      </div>
+                      <>
+                        <div className="prose prose-sm dark:prose-invert max-w-none 
+                          prose-p:my-3 prose-p:leading-relaxed
+                          prose-headings:mt-4 prose-headings:mb-2
+                          prose-ul:my-2 prose-ol:my-2
+                          prose-li:my-1">
+                          <ReactMarkdown 
+                            remarkPlugins={[remarkGfm, remarkBreaks]}
+                            components={{
+                              // Custom paragraph component to handle line breaks properly
+                              p: ({ children }) => <p className="mb-2">{children}</p>,
+                              br: () => <br className="my-1" />
+                            }}
+                          >
+                            {message.content.replace(/\\n/g, '\n')}
+                          </ReactMarkdown>
+                        </div>
+                        {renderSources(message.sources)}
+                      </>
                     )}
                     <div className={cn(
                       "flex items-center gap-2 mt-2 text-xs",

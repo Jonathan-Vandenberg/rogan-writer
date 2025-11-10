@@ -112,11 +112,26 @@ export async function PUT(
         updateData.purpose !== undefined || updateData.conflict !== undefined || 
         updateData.outcome !== undefined) {
       try {
-        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-        await aiEmbeddingService.updateSceneCardEmbedding(resolvedParams.sceneCardId)
-        console.log(`✅ Updated embedding for scene card: ${resolvedParams.sceneCardId}`)
+        const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+        
+        const content = [
+          `Scene: ${updatedCard.title}`,
+          updatedCard.description ? `Description: ${updatedCard.description}` : '',
+          updatedCard.purpose ? `Purpose: ${updatedCard.purpose}` : '',
+          updatedCard.conflict ? `Conflict: ${updatedCard.conflict}` : '',
+          updatedCard.outcome ? `Outcome: ${updatedCard.outcome}` : ''
+        ].filter(Boolean).join('\n\n');
+        
+        await unifiedEmbeddingService.updateSourceEmbeddings({
+          bookId: updatedCard.bookId,
+          sourceType: 'sceneCard',
+          sourceId: updatedCard.id,
+          content,
+          metadata: { title: updatedCard.title }
+        })
+        console.log(`✅ Updated unified embeddings for scene card: ${updatedCard.title}`)
       } catch (embeddingError) {
-        console.error(`⚠️ Failed to update embedding for scene card ${resolvedParams.sceneCardId}:`, embeddingError)
+        console.error(`⚠️ Failed to update unified embeddings for scene card ${resolvedParams.sceneCardId}:`, embeddingError)
         // Don't fail the request if embedding generation fails
       }
     }

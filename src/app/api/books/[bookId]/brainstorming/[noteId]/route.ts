@@ -76,14 +76,21 @@ export async function PUT(
 
     const updatedNote = await BrainstormingService.updateNote(resolvedParams.noteId, updateData)
     
-    // 🚀 AUTO-REGENERATE EMBEDDING if title or content changed
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE if title or content changed
     if (updateData.title !== undefined || updateData.content !== undefined) {
       try {
-        const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-        await aiEmbeddingService.updateBrainstormingEmbeddingById(resolvedParams.noteId)
-        console.log(`✅ Updated embedding for brainstorming note: ${resolvedParams.noteId}`)
+        const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+        
+        await unifiedEmbeddingService.updateSourceEmbeddings({
+          bookId: updatedNote.bookId,
+          sourceType: 'brainstorming',
+          sourceId: updatedNote.id,
+          content: `Brainstorm: ${updatedNote.title}\n\n${updatedNote.content}`,
+          metadata: { title: updatedNote.title, tags: updatedNote.tags }
+        })
+        console.log(`✅ Updated unified embeddings for brainstorming note: ${updatedNote.title}`)
       } catch (embeddingError) {
-        console.error(`⚠️ Failed to update embedding for brainstorming note ${resolvedParams.noteId}:`, embeddingError)
+        console.error(`⚠️ Failed to update unified embeddings for brainstorming note ${resolvedParams.noteId}:`, embeddingError)
         // Don't fail the request if embedding generation fails
       }
     }

@@ -86,6 +86,7 @@ export default function ExportPage() {
   const [loading, setLoading] = React.useState(true)
   const [audioChapters, setAudioChapters] = React.useState<any[]>([])
   const [loadingAudio, setLoadingAudio] = React.useState(false)
+  const [bookTitle, setBookTitle] = React.useState<string>('')
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   // Fetch export stats and recent exports
@@ -111,29 +112,39 @@ export default function ExportPage() {
     fetchExportData()
   }, [])
 
-  // Fetch audio chapters when book changes
+  // Fetch book data and audio chapters when book changes
   React.useEffect(() => {
-    async function fetchAudioChapters() {
+    async function fetchBookData() {
       if (!selectedBookId) {
         setAudioChapters([])
+        setBookTitle('')
+        setLoadingAudio(false)
         return
       }
 
       setLoadingAudio(true)
       try {
-        const response = await fetch(`/api/books/${selectedBookId}/audiobook/generate`)
-        if (response.ok) {
-          const data = await response.json()
-          setAudioChapters(data.chapters || [])
+        // Fetch book details for title
+        const bookResponse = await fetch(`/api/books/${selectedBookId}`)
+        if (bookResponse.ok) {
+          const bookData = await bookResponse.json()
+          setBookTitle(bookData.title || '')
+        }
+
+        // Fetch audio chapters
+        const audioResponse = await fetch(`/api/books/${selectedBookId}/audiobook/generate`)
+        if (audioResponse.ok) {
+          const audioData = await audioResponse.json()
+          setAudioChapters(audioData.chapters || [])
         }
       } catch (error) {
-        console.error('Error fetching audio chapters:', error)
+        console.error('Error fetching book data:', error)
       } finally {
         setLoadingAudio(false)
       }
     }
 
-    fetchAudioChapters()
+    fetchBookData()
   }, [selectedBookId])
 
   const handleProcessExport = async (exportId: string) => {
@@ -244,10 +255,12 @@ export default function ExportPage() {
       const data = await response.json()
 
       if (data.success && data.chapter.signedUrl) {
-        // Create a link and trigger download
+        // Create a link and trigger download with chapter title as filename
         const link = document.createElement('a')
         link.href = data.chapter.signedUrl
-        link.download = `${chapterTitle}.mp3`
+        // Sanitize the chapter title for filename
+        const sanitizedTitle = chapterTitle.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_')
+        link.download = `${sanitizedTitle}.mp3`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -285,11 +298,20 @@ export default function ExportPage() {
         const url = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        link.download = `audiobook-${selectedBookId}.mp3`
+        // Use book title as filename for complete audiobook
+        const sanitizedTitle = bookTitle.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_') || 'audiobook'
+        link.download = `${sanitizedTitle}.mp3`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
         window.URL.revokeObjectURL(url)
+        
+        // Refresh export stats to show the new audiobook download
+        const statsResponse = await fetch('/api/exports')
+        if (statsResponse.ok) {
+          const stats = await statsResponse.json()
+          setExportStats(stats)
+        }
       } else {
         const data = await response.json()
         alert(`Download failed: ${data.error || 'Unknown error'}`)
@@ -309,6 +331,15 @@ export default function ExportPage() {
       case 'PROCESSING': return <Clock className="h-4 w-4 text-yellow-500" />
       case 'FAILED': return <AlertCircle className="h-4 w-4 text-red-500" />
       default: return <Clock className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const getFormatIcon = (format: string) => {
+    switch (format.toUpperCase()) {
+      case 'PDF': return <FileText className="h-4 w-4 text-blue-600" />
+      case 'TXT': return <FileText className="h-4 w-4 text-gray-500" />
+      case 'MP3': return <Volume2 className="h-4 w-4 text-purple-500" />
+      default: return <FileText className="h-4 w-4 text-gray-500" />
     }
   }
 
@@ -361,7 +392,7 @@ export default function ExportPage() {
                 variant="outline"
               >
                 <div className="flex items-center gap-3 w-full">
-                  <FileText className="h-6 w-6 text-red-500" />
+                  <FileText className="h-6 w-6 text-blue-600" />
                   <div className="text-left">
                     <div className="font-medium">PDF</div>
                     <div className="text-sm text-muted-foreground">PDF format</div>
@@ -475,7 +506,10 @@ export default function ExportPage() {
               {exportStats.recentExports.map((exportItem) => (
                 <div key={exportItem.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
-                    {getStatusIcon(exportItem.status)}
+                    <div className="flex items-center gap-2">
+                      {getFormatIcon(exportItem.format)}
+                      {getStatusIcon(exportItem.status)}
+                    </div>
                     <div>
                       <div className="font-medium">{exportItem.fileName}</div>
                       <div className="text-sm text-muted-foreground">

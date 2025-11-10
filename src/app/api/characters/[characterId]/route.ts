@@ -51,13 +51,29 @@ export async function PUT(
       imageUrl: data.imageUrl
     })
     
-    // 🚀 AUTO-REGENERATE EMBEDDING for character updates (all fields affect embedding)
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE for character updates
     try {
-      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-      await aiEmbeddingService.updateCharacterEmbedding(resolvedParams.characterId)
-      console.log(`✅ Updated embedding for character: ${resolvedParams.characterId}`)
+      const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+      
+      const content = [
+        `Character: ${character.name}`,
+        character.role ? `Role: ${character.role}` : '',
+        character.description ? `Description: ${character.description}` : '',
+        character.appearance ? `Appearance: ${character.appearance}` : '',
+        character.personality ? `Personality: ${character.personality}` : '',
+        character.backstory ? `Backstory: ${character.backstory}` : ''
+      ].filter(Boolean).join('\n\n');
+      
+      await unifiedEmbeddingService.updateSourceEmbeddings({
+        bookId: character.bookId,
+        sourceType: 'character',
+        sourceId: character.id,
+        content,
+        metadata: { name: character.name, role: character.role }
+      })
+      console.log(`✅ Updated unified embeddings for character: ${character.name}`)
     } catch (embeddingError) {
-      console.error(`⚠️ Failed to update embedding for character ${resolvedParams.characterId}:`, embeddingError)
+      console.error(`⚠️ Failed to update unified embeddings for character ${resolvedParams.characterId}:`, embeddingError)
       // Don't fail the request if embedding generation fails
     }
     

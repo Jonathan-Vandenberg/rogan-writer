@@ -142,10 +142,9 @@ export class ExportService {
       throw new Error('Book not found')
     }
 
-    // Generate filename
-    const timestamp = new Date().toISOString().split('T')[0]
-    const sanitizedTitle = book.title.replace(/[^a-zA-Z0-9]/g, '_')
-    const fileName = `${sanitizedTitle}_${timestamp}.${format.toLowerCase()}`
+    // Generate filename using book title only
+    const sanitizedTitle = book.title.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_')
+    const fileName = `${sanitizedTitle}.${format.toLowerCase()}`
 
     return await this.createExport({
       format,

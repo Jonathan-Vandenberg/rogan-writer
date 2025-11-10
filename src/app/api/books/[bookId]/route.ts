@@ -14,9 +14,16 @@ export async function GET(
     }
 
     const { bookId } = await params
+    
+    // Get the book with stats
     const book = await BookService.getBookStats(bookId)
     
     if (!book) {
+      return NextResponse.json({ error: 'Book not found' }, { status: 404 })
+    }
+    
+    // Verify ownership
+    if (book.userId !== session.user.id) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 })
     }
     

@@ -132,6 +132,9 @@ model Book {
   citations         Citation[]
   factChecks        FactCheck[]
   researchSessions  ResearchSession[]
+  
+  // Unified Vector Store
+  embeddingChunks   BookEmbeddingChunk[]
 
   @@map("books")
 }
@@ -537,6 +540,7 @@ enum ExportFormat {
   PDF
   TXT
   HTML
+  MP3
 }
 
 enum ExportStatus {
@@ -673,4 +677,32 @@ model ResearchSession {
   @@index([bookId])
   @@index([userId])
   @@index([createdAt])
+  @@map("research_sessions")
+}
+
+// ===== UNIFIED VECTOR STORE =====
+// Stores chunked embeddings for all book content with source tracking
+model BookEmbeddingChunk {
+  id          String   @id @default(cuid())
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  
+  // Source tracking - what content this chunk came from
+  sourceType  String   // 'chapter', 'brainstorming', 'character', 'location', 'plotPoint', 'timeline', 'sceneCard', 'research'
+  sourceId    String   // ID of the source entity
+  chunkIndex  Int      @default(0) // For splitting large content into multiple chunks
+  
+  // Content and metadata
+  content     String   @db.Text // The actual text chunk (500-1000 chars)
+  metadata    Json     // Store title, orderIndex, chapter number, character name, etc. for display
+  
+  // Vector embedding (OpenAI ada-002: 1536 dimensions)
+  embedding   Unsupported("vector(1536)")? // pgvector format
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([bookId, sourceType])
+  @@index([bookId, sourceId])
+  @@map("book_embedding_chunks")
 } 

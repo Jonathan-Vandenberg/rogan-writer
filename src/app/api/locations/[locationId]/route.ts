@@ -50,13 +50,27 @@ export async function PUT(
       imageUrl: data.imageUrl
     })
     
-    // 🚀 AUTO-REGENERATE EMBEDDING for location updates (all fields affect embedding)
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE for location updates
     try {
-      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-      await aiEmbeddingService.updateLocationEmbedding(resolvedParams.locationId)
-      console.log(`✅ Updated embedding for location: ${resolvedParams.locationId}`)
+      const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+      
+      const content = [
+        `Location: ${location.name}`,
+        location.description ? `Description: ${location.description}` : '',
+        location.geography ? `Geography: ${location.geography}` : '',
+        location.culture ? `Culture: ${location.culture}` : ''
+      ].filter(Boolean).join('\n\n');
+      
+      await unifiedEmbeddingService.updateSourceEmbeddings({
+        bookId: location.bookId,
+        sourceType: 'location',
+        sourceId: location.id,
+        content,
+        metadata: { name: location.name }
+      })
+      console.log(`✅ Updated unified embeddings for location: ${location.name}`)
     } catch (embeddingError) {
-      console.error(`⚠️ Failed to update embedding for location ${resolvedParams.locationId}:`, embeddingError)
+      console.error(`⚠️ Failed to update unified embeddings for location ${resolvedParams.locationId}:`, embeddingError)
       // Don't fail the request if embedding generation fails
     }
     
