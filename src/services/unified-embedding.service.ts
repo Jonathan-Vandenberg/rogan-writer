@@ -4,6 +4,13 @@
  * Manages a single vector store for ALL book content (chapters, characters, 
  * locations, plot, timeline, brainstorming, scenes, research) with chunking
  * for efficient semantic search.
+ * 
+ * Architecture:
+ * - Embeddings: Always uses OpenAI ada-002 (1536 dimensions)
+ * - LLM: Can use either OpenAI or Ollama (configured separately in llm.service.ts)
+ * 
+ * This allows you to use a free local LLM (Ollama) while still getting high-quality
+ * embeddings from OpenAI for semantic search.
  */
 
 import OpenAI from 'openai';
@@ -31,6 +38,14 @@ interface SearchResult {
 export class UnifiedEmbeddingService {
   private readonly CHUNK_SIZE = 800; // characters per chunk
   private readonly OVERLAP = 100; // overlap between chunks for context
+
+  constructor() {
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('⚠️  No OPENAI_API_KEY found. Embeddings will fail. Set OPENAI_API_KEY in .env');
+    } else {
+      console.log('🌐 Unified Embeddings: Using OpenAI');
+    }
+  }
 
   /**
    * Chunk text into smaller pieces with overlap
@@ -61,6 +76,7 @@ export class UnifiedEmbeddingService {
 
   /**
    * Generate embedding for text using OpenAI
+   * Note: Always uses OpenAI for embeddings (1536 dimensions) regardless of LLM choice
    */
   private async generateEmbedding(text: string): Promise<number[]> {
     try {
@@ -136,6 +152,24 @@ export class UnifiedEmbeddingService {
       console.log(`✅ Updated ${chunks.length} chunks for ${sourceType}:${sourceId}`);
     } catch (error) {
       console.error(`❌ Error updating embeddings for ${sourceType}:${sourceId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all embeddings for a specific source
+   */
+  async deleteSourceEmbeddings(bookId: string, sourceType: string, sourceId: string): Promise<void> {
+    console.log(`🗑️  Deleting embeddings for ${sourceType}:${sourceId}`);
+
+    try {
+      await prisma.bookEmbeddingChunk.deleteMany({
+        where: { bookId, sourceType, sourceId }
+      });
+
+      console.log(`✅ Deleted embeddings for ${sourceType}:${sourceId}`);
+    } catch (error) {
+      console.error(`❌ Error deleting embeddings for ${sourceType}:${sourceId}:`, error);
       throw error;
     }
   }

@@ -94,10 +94,14 @@ interface ComprehensiveAnalysisResult {
 interface ComprehensiveAnalysisProps {
   bookId: string;
   className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const ComprehensiveAnalysis = ({ bookId, className }: ComprehensiveAnalysisProps) => {
-  const [isOpen, setIsOpen] = React.useState(false)
+const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpenChange }: ComprehensiveAnalysisProps) => {
+  const [internalOpen, setInternalOpen] = React.useState(false)
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setIsOpen = onOpenChange || setInternalOpen
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
   const [analysisResult, setAnalysisResult] = React.useState<ComprehensiveAnalysisResult | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -328,12 +332,14 @@ const ComprehensiveAnalysis = ({ bookId, className }: ComprehensiveAnalysisProps
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className={cn("gap-2", className)}>
-          <Sparkles className="h-4 w-4" />
-          Analyze Entire Book
-        </Button>
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button className={cn("gap-2", className)}>
+            <Sparkles className="h-4 w-4" />
+            Analyze Entire Book
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="!max-w-none w-[96vw] h-[94vh] !p-4 overflow-hidden flex flex-col" style={{ width: '96vw', height: '94vh', maxWidth: 'none' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

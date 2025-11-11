@@ -41,6 +41,7 @@ export default function AudiobookManager({ bookId }: AudiobookManagerProps) {
   const [chapters, setChapters] = useState<ChapterAudioStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [generatingChapterId, setGeneratingChapterId] = useState<string | null>(null)
   const [summary, setSummary] = useState({
     total: 0,
     not_generated: 0,
@@ -124,7 +125,39 @@ export default function AudiobookManager({ bookId }: AudiobookManagerProps) {
     }
   }
 
+  const regenerateAllAudio = async () => {
+    if (!confirm(`Are you sure you want to regenerate ALL audiobook chapters? This will replace all existing audio files.`)) {
+      return
+    }
+
+    setGenerating(true)
+    
+    try {
+      const response = await fetch(`/api/books/${bookId}/audiobook/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ regenerateAll: true }),
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`✅ Audio regeneration started for ${data.chaptersToGenerate} chapters`)
+        fetchAudioStatus()
+      } else {
+        throw new Error(data.error || 'Failed to start regeneration')
+      }
+    } catch (error) {
+      alert(`❌ Regeneration Failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   const generateChapterAudio = async (chapterId: string, chapterTitle: string) => {
+    setGeneratingChapterId(chapterId)
+    
     try {
       const response = await fetch(`/api/books/${bookId}/chapters/${chapterId}/audio`, {
         method: 'POST',
@@ -139,6 +172,8 @@ export default function AudiobookManager({ bookId }: AudiobookManagerProps) {
       }
     } catch (error) {
       alert(`❌ Generation Failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setGeneratingChapterId(null)
     }
   }
 
@@ -260,23 +295,37 @@ export default function AudiobookManager({ bookId }: AudiobookManagerProps) {
             </div>
           </div>
 
-          <Button 
-            onClick={generateAllAudio} 
-            disabled={generating || summary.not_generated === 0}
-            className="w-full"
-          >
-            {generating ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Starting Generation...
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4 mr-2" />
-                Generate Audiobook ({summary.not_generated + summary.failed} Chapters)
-              </>
+          <div className="flex gap-2">
+            <Button 
+              onClick={generateAllAudio} 
+              disabled={generating || summary.not_generated === 0}
+              className="flex-1"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Starting Generation...
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4 mr-2" />
+                  Generate Audiobook ({summary.not_generated + summary.failed} Chapters)
+                </>
+              )}
+            </Button>
+            
+            {summary.completed > 0 && (
+              <Button 
+                onClick={regenerateAllAudio} 
+                disabled={generating}
+                variant="outline"
+                className="flex-shrink-0"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Regenerate All
+              </Button>
             )}
-          </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -346,9 +395,19 @@ export default function AudiobookManager({ bookId }: AudiobookManagerProps) {
                       <Button
                         size="sm"
                         onClick={() => generateChapterAudio(chapter.id, chapter.title)}
+                        disabled={generatingChapterId === chapter.id}
                       >
-                        <Volume2 className="w-4 h-4 mr-1" />
-                        Generate
+                        {generatingChapterId === chapter.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 className="w-4 h-4 mr-2" />
+                            Generate
+                          </>
+                        )}
                       </Button>
                     )}
                     {chapter.audioStatus === 'generating' && (

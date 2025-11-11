@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Bookmark, Search, Edit, Trash2, GripVertical, Target, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { AISceneSuggestions } from './ai-scene-suggestions'
 import type { SceneCard, SceneStatus, Chapter } from '@prisma/client'
 
 // Scene status configurations
@@ -249,29 +250,35 @@ export function SceneCardBoard({ bookId }: SceneCardBoardProps) {
           </div>
         </div>
         
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Scene
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create New Scene</DialogTitle>
-              <DialogDescription>
-                Plan a new scene for your story
-              </DialogDescription>
-            </DialogHeader>
-            <SceneCardForm
-              formData={formData}
-              setFormData={setFormData}
-              chapters={chapters}
-              onSubmit={handleCreateSceneCard}
-              submitLabel="Create Scene"
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <AISceneSuggestions 
+            bookId={bookId} 
+            onSuggestionAccepted={() => fetchSceneCards()} 
+          />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Scene
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Scene</DialogTitle>
+                <DialogDescription>
+                  Plan a new scene for your story
+                </DialogDescription>
+              </DialogHeader>
+              <SceneCardForm
+                formData={formData}
+                setFormData={setFormData}
+                chapters={chapters}
+                onSubmit={handleCreateSceneCard}
+                submitLabel="Create Scene"
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Search */}

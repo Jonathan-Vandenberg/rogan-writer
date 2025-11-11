@@ -130,8 +130,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Plot point not found' }, { status: 404 })
     }
 
-    // Add delete method to PlotService if it doesn't exist
+    // Delete the plot point
     await PlotService.deletePlotPoint(resolvedParams.plotPointId)
+    
+    // 🚀 AUTO-CLEAN UNIFIED VECTOR STORE
+    try {
+      const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+      await unifiedEmbeddingService.deleteSourceEmbeddings(
+        existingPlotPoint.bookId,
+        'plotPoint',
+        resolvedParams.plotPointId
+      )
+      console.log(`✅ Cleaned up embeddings for deleted plot point: ${resolvedParams.plotPointId}`)
+    } catch (embeddingError) {
+      console.error(`⚠️ Failed to clean up embeddings for plot point ${resolvedParams.plotPointId}:`, embeddingError)
+      // Don't fail the request if embedding cleanup fails
+    }
     
     return NextResponse.json({ success: true })
   } catch (error) {

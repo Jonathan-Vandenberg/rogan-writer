@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MapPin, Plus, Edit, Trash2, Search, Calendar, Clock, User} from 'lucide-react'
 import { useSelectedBook } from '@/contexts/selected-book-context'
+import { AILocationSuggestions } from './ai-location-suggestions'
 import type { Location, TimelineEvent, Character } from '@prisma/client'
 
 // Extended type for locations with timeline event count
@@ -224,17 +225,25 @@ export function LocationsView({ className }: LocationsViewProps) {
               </Badge>
           </div>
           </div>
-          <Button 
-            onClick={() => {
-              setEditingLocation(null)
-              resetForm()
-              setShowAddDialog(true)
-            }}
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Location
-          </Button>
+          <div className="flex gap-2">
+            {selectedBookId && (
+              <AILocationSuggestions 
+                bookId={selectedBookId} 
+                onSuggestionAccepted={() => fetchLocations()} 
+              />
+            )}
+            <Button 
+              onClick={() => {
+                setEditingLocation(null)
+                resetForm()
+                setShowAddDialog(true)
+              }}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Location
+            </Button>
+          </div>
         </div>
 
         {/* Search */}

@@ -198,6 +198,7 @@ export class ExportService {
         fileName: exp.fileName,
         status: exp.status,
         bookTitle: exp.book.title,
+        bookId: exp.bookId,
         createdAt: exp.createdAt,
         fileUrl: exp.fileUrl
       })),

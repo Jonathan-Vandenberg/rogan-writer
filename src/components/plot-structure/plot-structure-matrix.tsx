@@ -40,13 +40,8 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
   const [editingPoint, setEditingPoint] = useState<PlotPointWithSubplot | null>(null)
   const [viewingPoint, setViewingPoint] = useState<PlotPointWithSubplot | null>(null)
   const [isAddSubplotOpen, setIsAddSubplotOpen] = useState(false)
+  const [isAIPlotOpen, setIsAIPlotOpen] = useState(false)
   const [newSubplotName, setNewSubplotName] = useState('')
-  const [isAIPlotSuggestionsOpen, setIsAIPlotSuggestionsOpen] = useState(false)
-
-  // Debug: Log modal state changes (temporary)
-  React.useEffect(() => {
-    console.log('🎭 Parent modal state:', isAIPlotSuggestionsOpen ? 'OPEN' : 'CLOSED')
-  }, [isAIPlotSuggestionsOpen])
 
   // Form state for editing plot points
   const [formData, setFormData] = useState({
@@ -350,14 +345,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
         </div>
         
         <div className="flex gap-2">
-          <AIPlotSuggestions 
-            key="ai-plot-suggestions"
-            bookId={bookId} 
-            subplots={subplots}
-            isOpen={isAIPlotSuggestionsOpen}
-            onOpenChange={setIsAIPlotSuggestionsOpen}
-            onSuggestionAccepted={handleSuggestionAccepted}
-          />
+          {/* Manual Subplot Creation Modal */}
           <Dialog open={isAddSubplotOpen} onOpenChange={setIsAddSubplotOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -365,34 +353,61 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
                 Add Subplot
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Subplot</DialogTitle>
-              <DialogDescription>
-                Create a new storyline (e.g., "romance", "character arc", "mystery")
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="subplot-name">Subplot Name</Label>
-                <Input
-                  id="subplot-name"
-                  value={newSubplotName}
-                  onChange={(e) => setNewSubplotName(e.target.value)}
-                  placeholder="e.g., romance, betrayal, character development"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={addSubplot} disabled={!newSubplotName.trim()}>
-                  Create Subplot
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add New Subplot</DialogTitle>
+                <DialogDescription>
+                  Create a new storyline manually or use AI
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="subplot-name">Subplot Name</Label>
+                  <Input
+                    id="subplot-name"
+                    value={newSubplotName}
+                    onChange={(e) => setNewSubplotName(e.target.value)}
+                    placeholder="e.g., romance, betrayal, character development"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={addSubplot} disabled={!newSubplotName.trim()}>
+                    Create Subplot
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsAddSubplotOpen(false)}>
+                    Cancel
+                  </Button>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2"
+                  onClick={() => {
+                    setIsAddSubplotOpen(false)
+                    setIsAIPlotOpen(true)
+                  }}
+                >
+                  <Target className="h-4 w-4" />
+                  Generate with AI
                 </Button>
-                <Button variant="outline" onClick={() => setIsAddSubplotOpen(false)}>
-                  Cancel
-                </Button>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+
+          {/* AI Plot Suggestions Modal - Separate */}
+          <AIPlotSuggestions
+            bookId={bookId}
+            onPlotAccepted={handleSuggestionAccepted}
+            isOpen={isAIPlotOpen}
+            onOpenChange={setIsAIPlotOpen}
+          />
         </div>
       </div>
 

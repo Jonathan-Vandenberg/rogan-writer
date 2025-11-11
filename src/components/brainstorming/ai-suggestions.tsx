@@ -43,7 +43,7 @@ async function getBookContentHash(bookId: string): Promise<string> {
 // Utility to clear cache for a specific book (call this when book content changes)
 export async function clearBrainstormingCache(bookId: string) {
   try {
-    await fetch(`/api/books/${bookId}/brainstorm-cache`, { method: 'DELETE' });
+    await fetch(`/api/books/${bookId}/book-planning-cache`, { method: 'DELETE' });
     console.log('🗑️ Cleared brainstorming cache for book:', bookId);
   } catch (error) {
     console.error('Failed to clear cache:', error);
@@ -63,7 +63,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
     console.log('🔍 Checking Redis cache for bookId:', bookId);
     
     try {
-      const response = await fetch(`/api/books/${bookId}/brainstorm-cache`);
+      const response = await fetch(`/api/books/${bookId}/book-planning-cache`);
       if (!response.ok) {
         console.log('❌ No Redis cache found');
         return null;
@@ -83,7 +83,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
       
       if (data.contentHash !== currentHash) {
         console.log('🔄 Book content changed - invalidating cache');
-        await fetch(`/api/books/${bookId}/brainstorm-cache`, { method: 'DELETE' });
+        await fetch(`/api/books/${bookId}/book-planning-cache`, { method: 'DELETE' });
         return null;
       }
       
@@ -99,7 +99,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
   const setCachedContext = async (context: string) => {
     const contentHash = await getBookContentHash(bookId);
     try {
-      await fetch(`/api/books/${bookId}/brainstorm-cache`, {
+      await fetch(`/api/books/${bookId}/book-planning-cache`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ context, contentHash })
@@ -232,6 +232,64 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
 
       // Mark as accepted
       setAcceptedSuggestions(prev => new Set([...prev, suggestion.id]))
+      
+      // Update Redis cache with new brainstorming note
+      console.log('🔄 Updating Redis cache with new brainstorming note...');
+      try {
+        const cacheResponse = await fetch(`/api/books/${bookId}/book-planning-cache`);
+        if (cacheResponse.ok) {
+          const cacheData = await cacheResponse.json();
+          if (cacheData.cached && cacheData.context) {
+            let updatedContext = cacheData.context;
+            
+            // Build the new brainstorming note text
+            const newNoteText = `1. "${suggestion.title}": ${suggestion.content.substring(0, 100)}... [${[...suggestion.tags, 'ai-generated'].join(', ')}]`;
+            
+            // Find the BRAINSTORMING IDEAS section and update it
+            const brainstormSectionMatch = updatedContext.match(/💡 EXISTING BRAINSTORMING IDEAS \((\d+) total\):/);
+            if (brainstormSectionMatch) {
+              const currentCount = parseInt(brainstormSectionMatch[1]);
+              const newCount = currentCount + 1;
+              
+              const brainstormStart = updatedContext.indexOf('💡 EXISTING BRAINSTORMING IDEAS');
+              const nextSectionStart = updatedContext.indexOf('\n\n', brainstormStart + 1);
+              
+              if (nextSectionStart !== -1) {
+                const beforeBrainstorm = updatedContext.substring(0, nextSectionStart);
+                const afterBrainstorm = updatedContext.substring(nextSectionStart);
+                updatedContext = `${beforeBrainstorm}\n${newNoteText}${afterBrainstorm}`;
+                updatedContext = updatedContext.replace(
+                  `💡 EXISTING BRAINSTORMING IDEAS (${currentCount} total):`,
+                  `💡 EXISTING BRAINSTORMING IDEAS (${newCount} total):`
+                );
+              } else {
+                updatedContext = `${updatedContext}\n${newNoteText}`;
+                updatedContext = updatedContext.replace(
+                  `💡 EXISTING BRAINSTORMING IDEAS (${currentCount} total):`,
+                  `💡 EXISTING BRAINSTORMING IDEAS (${newCount} total):`
+                );
+              }
+            } else {
+              updatedContext += `\n\n💡 EXISTING BRAINSTORMING IDEAS (1 total):\n${newNoteText}`;
+            }
+            
+            // Save updated context back to Redis
+            await fetch(`/api/books/${bookId}/book-planning-cache`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                context: updatedContext, 
+                contentHash: cacheData.contentHash 
+              })
+            });
+            console.log('✅ Cache updated successfully with new brainstorming note');
+          } else {
+            console.log('⚠️ No cache found, will rebuild on next analysis');
+          }
+        }
+      } catch (cacheError) {
+        console.warn('Failed to update cache, will rebuild on next analysis:', cacheError);
+      }
       
       // Notify parent component
       onSuggestionAccepted?.(suggestion)

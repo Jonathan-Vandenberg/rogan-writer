@@ -1,4 +1,16 @@
-# Redis Setup for Brainstorming Cache
+# Redis Setup for Caching
+
+## 📦 What's Cached in Redis?
+
+1. **Book Planning Context** (`book_planning:{bookId}`)
+   - Characters, locations, plot points, timeline, brainstorming notes
+   - Used by AI agents for generating suggestions
+   - TTL: 1 hour
+   
+2. **Editor Agent Chat History** (`editor_chat_history:{bookId}`)
+   - Conversation history with the Editor Agent
+   - Persists across modal open/close
+   - TTL: 7 days
 
 ## 🚀 Quick Setup
 
@@ -70,36 +82,40 @@
    ✅ Redis connected
    ```
 
-3. **Generate brainstorming suggestions:**
-   - First time: Full vector search
+3. **Generate AI suggestions (characters, locations, scenes, etc.):**
+   - First time: Full database query to build planning context
    - Second time (even after refresh): Uses Redis cache!
 
 ## 🔧 Configuration
 
 Edit `/src/lib/redis.ts` to customize:
 - `CACHE_TTL`: Cache duration (default: 3600 seconds = 1 hour)
-- `CACHE_PREFIX`: Redis key prefix (default: 'brainstorm:')
+- `CACHE_PREFIX`: Redis key prefix (default: 'book_planning:')
 
 ## 🗑️ Clear Cache
 
 Programmatically clear cache:
 ```typescript
-import { clearBrainstormingCache } from '@/components/brainstorming/ai-suggestions'
+import { clearSceneCache } from '@/components/scene-cards/ai-scene-suggestions'
+import { clearCharacterCache } from '@/components/characters/ai-character-suggestions'
+import { clearLocationCache } from '@/components/locations/ai-location-suggestions'
 
-// Clear specific book
-await clearBrainstormingCache(bookId)
+// Clear specific book planning cache
+await clearSceneCache(bookId)
+await clearCharacterCache(bookId)
+await clearLocationCache(bookId)
 ```
 
 Or via API:
 ```bash
-curl -X DELETE http://localhost:3000/api/books/BOOK_ID/brainstorm-cache
+curl -X DELETE http://localhost:3000/api/books/BOOK_ID/book-planning-cache
 ```
 
 ## 📊 Monitor Cache
 
 Check if cache exists:
 ```bash
-curl http://localhost:3000/api/books/BOOK_ID/brainstorm-cache
+curl http://localhost:3000/api/books/BOOK_ID/book-planning-cache
 ```
 
 Response:

@@ -11,14 +11,16 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
 interface AnalyzeRequest {
-  type: 'brainstorming' | 'characters' | 'plot' | 'full';
+  type: 'brainstorming' | 'characters' | 'plot' | 'locations' | 'scenes' | 'full';
   options?: {
     generateEmbeddings?: boolean;
     maxSuggestions?: number;
     subplot?: string;
-    existingSuggestions?: Array<{ title: string; content: string }>;
+    generateStructures?: boolean;
+    existingSuggestions?: Array<{ title: string; content?: string; description?: string }>;
     cachedContext?: string | null;
     skipVectorSearch?: boolean;
+    customDirection?: string;
   };
 }
 
@@ -88,27 +90,102 @@ export async function POST(
         });
 
       case 'characters':
-        const characterSuggestions = await aiOrchestrator.analyzeModule('characters', bookId);
+        const characterResult = await aiOrchestrator.analyzeModule(
+          'characters', 
+          bookId, 
+          { 
+            existingSuggestions: options.existingSuggestions || [],
+            cachedContext: options.cachedContext,
+            skipVectorSearch: options.skipVectorSearch
+          }
+        ) as unknown as { suggestions: any[], context: string };
         return Response.json({
           type: 'characters',
-          suggestions: characterSuggestions.slice(0, options.maxSuggestions || 5),
+          suggestions: characterResult.suggestions.slice(0, options.maxSuggestions || 5),
+          context: characterResult.context, // Return context for caching
           metadata: {
             analysisDate: new Date(),
-            suggestionCount: characterSuggestions.length
+            suggestionCount: characterResult.suggestions.length,
+            usedCache: options.skipVectorSearch || false
+          }
+        });
+
+      case 'locations':
+        const locationResult = await aiOrchestrator.analyzeModule(
+          'locations', 
+          bookId, 
+          { 
+            existingSuggestions: options.existingSuggestions || [],
+            cachedContext: options.cachedContext,
+            skipVectorSearch: options.skipVectorSearch
+          }
+        ) as unknown as { suggestions: any[], context: string };
+        return Response.json({
+          type: 'locations',
+          suggestions: locationResult.suggestions.slice(0, options.maxSuggestions || 5),
+          context: locationResult.context, // Return context for caching
+          metadata: {
+            analysisDate: new Date(),
+            suggestionCount: locationResult.suggestions.length,
+            usedCache: options.skipVectorSearch || false
+          }
+        });
+
+      case 'scenes':
+        const sceneResult = await aiOrchestrator.analyzeModule(
+          'scenes', 
+          bookId, 
+          { 
+            existingSuggestions: options.existingSuggestions || [],
+            cachedContext: options.cachedContext,
+            skipVectorSearch: options.skipVectorSearch
+          }
+        ) as unknown as { suggestions: any[], context: string };
+        return Response.json({
+          type: 'scenes',
+          suggestions: sceneResult.suggestions.slice(0, options.maxSuggestions || 5),
+          context: sceneResult.context, // Return context for caching
+          metadata: {
+            analysisDate: new Date(),
+            suggestionCount: sceneResult.suggestions.length,
+            usedCache: options.skipVectorSearch || false
           }
         });
 
       case 'plot':
-        const plotSuggestions = await aiOrchestrator.analyzeModule('plot', bookId, { subplot: options.subplot });
-        return Response.json({
-          type: 'plot',
-          suggestions: plotSuggestions.slice(0, options.maxSuggestions || 5),
-          metadata: {
-            analysisDate: new Date(),
-            suggestionCount: plotSuggestions.length,
-            subplot: options.subplot || 'main'
-          }
-        });
+        const plotResult = await aiOrchestrator.analyzeModule('plot', bookId, { 
+          subplot: options.subplot,
+          generateStructures: options.generateStructures,
+          existingSuggestions: options.existingSuggestions || [],
+          cachedContext: options.cachedContext,
+          skipVectorSearch: options.skipVectorSearch,
+          customDirection: options.customDirection
+        }) as unknown as { suggestions: any[], context: string } | any[];
+        
+        // Handle both plot structures and individual plot points
+        if (options.generateStructures && !Array.isArray(plotResult)) {
+          return Response.json({
+            type: 'plot',
+            suggestions: plotResult.suggestions.slice(0, options.maxSuggestions || 5),
+            context: plotResult.context,
+            metadata: {
+              analysisDate: new Date(),
+              suggestionCount: plotResult.suggestions.length,
+              usedCache: options.skipVectorSearch || false
+            }
+          });
+        } else {
+          const plotSuggestions = Array.isArray(plotResult) ? plotResult : plotResult.suggestions || [];
+          return Response.json({
+            type: 'plot',
+            suggestions: plotSuggestions.slice(0, options.maxSuggestions || 5),
+            metadata: {
+              analysisDate: new Date(),
+              suggestionCount: plotSuggestions.length,
+              subplot: options.subplot || 'main'
+            }
+          });
+        }
 
       case 'full':
         const fullAnalysis = await aiOrchestrator.comprehensiveAnalysis(bookId);

@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils"
 interface DraftGeneratorProps {
   bookId: string;
   className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface PlanningContent {
@@ -62,8 +64,10 @@ interface DraftPreview {
   summary: string;
 }
 
-const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
+const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className, open: controlledOpen, onOpenChange }) => {
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = onOpenChange || setInternalOpen;
   const [isLoading, setIsLoading] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -254,12 +258,14 @@ const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className }) =>
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className={cn("gap-2", className)}>
-          <FileText className="h-4 w-4" />
-          Draft from Planning
-        </Button>
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button variant="outline" className={cn("gap-2", className)}>
+            <FileText className="h-4 w-4" />
+            Draft from Planning
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

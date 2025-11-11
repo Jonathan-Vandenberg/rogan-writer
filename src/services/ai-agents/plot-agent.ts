@@ -1,7 +1,7 @@
 import { Chapter, PlotPointType } from '@prisma/client';
 import { AIAgent } from './base-agent';
 import { prisma } from '@/lib/db';
-import { aiEmbeddingService } from '../ai-embedding.service';
+import { PlanningContextService } from '../planning-context.service';
 
 export interface ConsistencyIssue {
   severity: 'low' | 'medium' | 'high';
@@ -30,27 +30,8 @@ export class PlotAgent extends AIAgent {
   async analyze(chapters: Chapter[], bookId: string, subplot: string = 'main'): Promise<PlotSuggestion[]> {
     console.log(`🎭 Plot Agent: Analyzing subplot "${subplot}"...`);
     
-    // Generate search query for relevant content based on subplot and plot analysis
-    const searchQuery = `${subplot} subplot plot structure story arc character development narrative progression`;
-    
-    // Use comprehensive vector search across ALL content types - FULL CONTEXT ACCESS
-    const [relevantNotes, relevantCharacters, relevantChapters, relevantLocations, relatedPlotPoints] = await Promise.all([
-      aiEmbeddingService.findSimilarBrainstormingNotes(bookId, searchQuery, 100),
-      aiEmbeddingService.findSimilarCharacters(bookId, searchQuery, 50),
-      aiEmbeddingService.findSimilarChapters(bookId, searchQuery, 50),
-      aiEmbeddingService.findSimilarLocations(bookId, searchQuery, 50),
-      aiEmbeddingService.findSimilarPlotPoints(bookId, searchQuery, 50)
-    ]);
-    
-    // Create focused content summary from comprehensive vector search results
-    const relevantContent = this.buildRelevantContentSummary(
-      chapters, 
-      relevantNotes, 
-      relevantCharacters, 
-      relevantChapters, 
-      relevantLocations, 
-      relatedPlotPoints
-    );
+    // Note: Vector search removed - using planning context instead
+    const relevantContent = '';
 
     // Get existing plot points for this subplot and all subplots (for consistency checking)
     const [existingPlotPoints, allPlotPoints] = await Promise.all([
@@ -282,5 +263,158 @@ export class PlotAgent extends AIAgent {
     return parts.length > 0 
       ? parts.join('\n\n') 
       : 'No relevant content found. Base suggestions on book title and description.';
+  }
+
+  /**
+   * Generate complete plot structure suggestions with all 7 sections filled
+   * Uses shared planning context and caching
+   */
+  async generatePlotStructures(
+    chapters: Chapter[], 
+    bookId: string, 
+    additionalContext?: any
+  ): Promise<{ suggestions: any[], context: string }> {
+    const existingSuggestions = additionalContext?.existingSuggestions as Array<{ title: string; description: string }> | undefined;
+    const cachedContext = additionalContext?.cachedContext as string | null | undefined;
+    const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
+    const customDirection = additionalContext?.customDirection as string | undefined;
+    
+    console.log('🎭 Plot Agent: Generating complete plot structures...');
+    if (customDirection) {
+      console.log('🎨 Using custom direction:', customDirection.substring(0, 100) + '...');
+    }
+
+    let planningContext: string;
+
+    // Use cached planning data if available
+    if (skipVectorSearch && cachedContext) {
+      console.log('🎭 ⚡ Using CACHED planning context!');
+      planningContext = cachedContext;
+    } else {
+      console.log('🎭 📚 Fetching fresh planning data from database...');
+      planningContext = await PlanningContextService.buildPlanningContext(bookId);
+    }
+
+    // Get book details
+    const book = await prisma.book.findUnique({
+      where: { id: bookId },
+      select: { title: true, description: true, genre: true }
+    });
+
+    // Get existing plot points to avoid duplicates
+    const existingPlotPoints = await prisma.plotPoint.findMany({
+      where: { bookId },
+      select: { title: true, description: true, type: true },
+      orderBy: { orderIndex: 'asc' }
+    });
+
+    const existingPlotsList = existingPlotPoints.length > 0
+      ? existingPlotPoints.map((p, i) => `${i + 1}. [${p.type}] "${p.title}": ${p.description?.substring(0, 100) || 'No description'}`).join('\n')
+      : 'No existing plot points yet.';
+
+    const existingSuggestionsList = existingSuggestions && existingSuggestions.length > 0
+      ? existingSuggestions.map((s, i) => `${i + 1}. "${s.title}": ${s.description.substring(0, 100)}`).join('\n')
+      : 'None';
+
+    const customDirectionSection = customDirection 
+      ? `\n      CUSTOM DIRECTION FROM USER:
+      ${customDirection}
+      
+      ⚠️ IMPORTANT: Incorporate this custom direction into your plot suggestions. Shape the plot structures to align with these specific requirements and themes.\n`
+      : '';
+
+    const prompt = `
+      Generate NEW complete plot structure suggestions for this book, with ALL 7 sections fully filled out.
+
+      BOOK INFORMATION:
+      Title: "${book?.title || 'Untitled'}"
+      Description: "${book?.description || 'No description'}"
+      Genre: ${book?.genre || 'Not specified'}
+${customDirectionSection}
+      COMPREHENSIVE PLANNING DATA:
+      ${planningContext}
+
+      EXISTING PLOT POINTS (DO NOT DUPLICATE):
+      ${existingPlotsList}
+
+      EXISTING SUGGESTIONS (DO NOT DUPLICATE):
+      ${existingSuggestionsList}
+
+      CRITICAL REQUIREMENTS:
+      1. Create completely NEW plot structures - avoid all duplicates
+      2. Generate EXACTLY ONE plot point for EACH of the 7 sections (keep descriptions concise - max 100 chars)
+      3. Ensure ALL 7 sections have exactly 1 plot point each
+      4. Base everything on the planning data above${customDirection ? ' AND the custom direction provided' : ''}
+      5. Keep titles short (max 5 words) and descriptions brief
+
+      Return a JSON array with this EXACT structure:
+      [
+        {
+          "title": "Plot Structure Title (short)",
+          "description": "Brief overview (1 sentence max)",
+          "plotPoints": {
+            "hook": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ],
+            "plotTurn1": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ],
+            "pinch1": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ],
+            "midpoint": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ],
+            "pinch2": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ],
+            "plotTurn2": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ],
+            "resolution": [
+              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+            ]
+          },
+          "reasoning": "Brief reason (2 sentences)",
+          "confidence": 0.85
+        }
+      ]
+
+      Generate 3 distinct, complete plot structures. Keep ALL content CONCISE. Ensure valid, complete JSON.
+    `;
+
+    try {
+      const response = await this.callOpenAI(prompt);
+      const plotStructures = this.cleanAndParseJSON(response);
+
+      const suggestions = plotStructures.slice(0, 3).map((structure: any, index: number) => ({
+        id: `plot_structure_${Date.now()}_${index}`,
+        title: structure.title || 'Untitled Plot Structure',
+        description: structure.description || '',
+        plotPoints: structure.plotPoints || {
+          hook: [],
+          plotTurn1: [],
+          pinch1: [],
+          midpoint: [],
+          pinch2: [],
+          plotTurn2: [],
+          resolution: []
+        },
+        reasoning: structure.reasoning || '',
+        confidence: typeof structure.confidence === 'number' ? structure.confidence : 0.7
+      }));
+
+      console.log(`🎭 Plot Agent: Generated ${suggestions.length} complete plot structures`);
+      return {
+        suggestions,
+        context: planningContext
+      };
+    } catch (error) {
+      console.error('Plot Agent error:', error);
+      return {
+        suggestions: [],
+        context: planningContext || ''
+      };
+    }
   }
 }

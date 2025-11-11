@@ -15,6 +15,7 @@ import ComprehensiveAnalysis from "@/components/comprehensive-analysis"
 import DraftGenerator from "@/components/draft-generator"
 import ResearchModal from "@/components/research-modal"
 import AudiobookModal from "@/components/audiobook-modal"
+import { AIActionsDropdown } from "@/components/ai-actions-dropdown"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { 
   Save, 
@@ -53,6 +54,61 @@ interface TypographySettings {
 
 export default function WritePage() {
   const { selectedBookId } = useSelectedBook()
+  
+  // State for controlling AI action modals
+  const [showAnalysis, setShowAnalysis] = React.useState(false)
+  const [showDraft, setShowDraft] = React.useState(false)
+  const [showAudiobook, setShowAudiobook] = React.useState(false)
+  
+  // Stable keys that only change when modals are explicitly opened
+  const [analysisKey, setAnalysisKey] = React.useState(0)
+  const [draftKey, setDraftKey] = React.useState(0)
+  const [audiobookKey, setAudiobookKey] = React.useState(0)
+  
+  // Force cleanup of dialog-specific styles only (don't remove DOM nodes)
+  React.useEffect(() => {
+    const cleanup = () => {
+      console.log('🧹 Cleaning up dialog styles...')
+      
+      // Only fix styles, don't remove DOM nodes (let React handle that)
+      document.body.removeAttribute('data-scroll-locked')
+      document.body.style.removeProperty('pointer-events')
+      document.body.style.removeProperty('overflow')
+      document.body.style.removeProperty('padding-right')
+      
+      document.documentElement.style.removeProperty('pointer-events')
+      
+      console.log('✅ Cleanup complete')
+    }
+    
+    if (!showAnalysis && !showDraft && !showAudiobook) {
+      // Delayed cleanup to let React animations finish
+      const timer = setTimeout(cleanup, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [showAnalysis, showDraft, showAudiobook])
+  
+  // Emergency cleanup on Escape key
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        console.log('🔑 Escape pressed - forcing modal cleanup')
+        setShowAnalysis(false)
+        setShowDraft(false)
+        setShowAudiobook(false)
+        
+        // Clean up styles
+        setTimeout(() => {
+          document.body.style.pointerEvents = ''
+          document.documentElement.style.pointerEvents = ''
+          document.body.style.overflow = ''
+        }, 100)
+      }
+    }
+    
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [])
   
   // Typography settings - initialize with defaults first
   const [typographySettings, setTypographySettings] = React.useState<TypographySettings>({
@@ -533,19 +589,21 @@ export default function WritePage() {
               className="h-8"
             />
             
-            <ComprehensiveAnalysis 
-              bookId={selectedBookId} 
-              className="h-8"
-            />
-            
-            <DraftGenerator 
-              bookId={selectedBookId} 
-              className="h-8"
-            />
-            
-            <AudiobookModal 
+            <AIActionsDropdown 
               bookId={selectedBookId}
               className="h-8"
+              onAnalyzeClick={() => {
+                setAnalysisKey(prev => prev + 1)
+                setShowAnalysis(true)
+              }}
+              onDraftClick={() => {
+                setDraftKey(prev => prev + 1)
+                setShowDraft(true)
+              }}
+              onAudiobookClick={() => {
+                setAudiobookKey(prev => prev + 1)
+                setShowAudiobook(true)
+              }}
             />
             
             {typographySettings.speechToTextEnabled && (
@@ -700,6 +758,38 @@ export default function WritePage() {
         onConfirm={confirmDeleteChapter}
         isLoading={isDeleting}
       />
+
+      {/* AI Action Modals - Conditionally mounted */}
+      {selectedBookId && showAnalysis && (
+        <ComprehensiveAnalysis 
+          key={analysisKey}
+          bookId={selectedBookId} 
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setShowAnalysis(false)
+          }}
+        />
+      )}
+      {selectedBookId && showDraft && (
+        <DraftGenerator 
+          key={draftKey}
+          bookId={selectedBookId} 
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setShowDraft(false)
+          }}
+        />
+      )}
+      {selectedBookId && showAudiobook && (
+        <AudiobookModal 
+          key={audiobookKey}
+          bookId={selectedBookId}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setShowAudiobook(false)
+          }}
+        />
+      )}
     </div>
   )
 } 

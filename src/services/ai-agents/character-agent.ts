@@ -1,7 +1,7 @@
 import { Chapter } from '@prisma/client';
 import { AIAgent } from './base-agent';
 import { prisma } from '@/lib/db';
-import { aiEmbeddingService } from '../ai-embedding.service';
+import { PlanningContextService } from '../planning-context.service';
 
 export interface CharacterSuggestion {
   id: string;
@@ -15,33 +15,52 @@ export interface CharacterSuggestion {
 }
 
 export class CharacterAgent extends AIAgent {
-  async analyze(chapters: Chapter[], bookId: string): Promise<CharacterSuggestion[]> {
+  // Override with extended signature and different return type
+  async analyze(
+    chapters: Chapter[], 
+    bookId: string, 
+    additionalContext?: any
+  ): Promise<any> {
+    // Extract parameters from additionalContext
+    const existingSuggestions = additionalContext?.existingSuggestions as Array<{ name: string; description: string }> | undefined;
+    const cachedContext = additionalContext?.cachedContext as string | null | undefined;
+    const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
     console.log('👤 Character Agent: Starting analysis...');
     
-    // Generate search query for character-related content
-    const searchQuery = `character development personality traits backstory relationships character arc motivation`;
-    
-    // Use comprehensive vector search to find ALL relevant content - FULL CONTEXT ACCESS
-    const relevantNotes = await aiEmbeddingService.findSimilarBrainstormingNotes(bookId, searchQuery, 100);
-    
-    // Create focused content summary from vector search results
-    const relevantContent = this.buildRelevantContentSummary(chapters, relevantNotes);
-    
-    // Get book details and existing characters
-    const [book, existingCharacters] = await Promise.all([
+    // Get book details and ALL existing characters
+    const [book, allExistingCharacters] = await Promise.all([
       prisma.book.findUnique({
         where: { id: bookId },
         select: { title: true, description: true, genre: true }
       }),
       prisma.character.findMany({
         where: { bookId },
-        select: { name: true, description: true, role: true }
+        select: { name: true, description: true, role: true, personality: true, backstory: true, createdAt: true },
+        orderBy: { createdAt: 'desc' }
       })
     ]);
 
-    // Simple list of existing characters for AI to avoid
-    const existingCharactersList = existingCharacters.length > 0 
-      ? existingCharacters.map(char => `(${char.name}, ${char.description?.substring(0, 100) || 'No description'}...)`).join(', ')
+    let planningContext: string;
+
+    // 💰 OPTIMIZATION: Use cached planning data if available
+    if (skipVectorSearch && cachedContext) {
+      console.log('👤 ⚡ Using CACHED planning context - skipping database fetch to save time!');
+      planningContext = cachedContext;
+    } else {
+      console.log('👤 📚 Fetching comprehensive planning data from database...');
+      // Fetch all planning data directly from database using shared service
+      planningContext = await PlanningContextService.buildPlanningContext(bookId);
+    }
+    
+    // Build DETAILED existing characters context to avoid duplicates
+    // Include both saved characters AND suggestions from current session
+    const allExisting = [
+      ...allExistingCharacters.map(char => ({ name: char.name, description: char.description || '', role: char.role, personality: char.personality })),
+      ...(existingSuggestions || []).map(s => ({ name: s.name, description: s.description, role: '', personality: '' }))
+    ];
+    
+    const existingCharactersList = allExisting.length > 0 
+      ? allExisting.map((char, i) => `${i + 1}. ${char.name} (${char.role || 'Unknown role'}): ${char.description.substring(0, 100)}${char.description.length > 100 ? '...' : ''}`).join('\n')
       : 'None yet';
 
     const prompt = `
@@ -52,19 +71,19 @@ export class CharacterAgent extends AIAgent {
       Description: "${book?.description || 'No description provided'}"
       Genre: ${book?.genre || 'Not specified'}
 
-      RELEVANT CONTENT (from vector similarity search):
-      ${relevantContent}
+      COMPREHENSIVE BOOK PLANNING DATA:
+      ${planningContext}
 
-      These are the current characters, do not make suggestions based on these, create new characters.
-      Current characters: [${existingCharactersList}]
+      EXISTING CHARACTERS (DO NOT DUPLICATE):
+      ${existingCharactersList}
 
       CRITICAL REQUIREMENTS:
-      1. **CREATE COMPLETELY NEW CHARACTERS**: Do not suggest anything similar to the existing characters listed above
-      2. **USE BOOK TITLE & DESCRIPTION AS PRIMARY SOURCE**: Base character suggestions on the book's title, description, and genre
-      3. Focus on characters that are mentioned or implied but not yet fully developed
-      4. Consider characters needed for plot development
-      5. Ensure each character serves a specific narrative purpose
-      6. **HIGH CONFIDENCE FOR BOOK-BASED SUGGESTIONS**: If suggestions are based on clear book concept, confidence should be 0.8-0.9
+      1. **AVOID ALL DUPLICATES**: Carefully review existing characters above. Do NOT suggest anything similar in name, role, or description
+      2. **USE ALL AVAILABLE CONTEXT**: Leverage plots, timeline, locations, brainstorming ideas, and scenes to identify missing characters
+      3. **FILL CHARACTER GAPS**: Identify roles that need to be filled, relationships that need development, or character types that are missing
+      4. **BE SPECIFIC**: Reference actual content from the book (plot events, locations, other characters)
+      5. **NON-FICTION BOOKS**: If this appears to be a non-fiction book (biography, history, memoir, business, etc.), suggest REAL historical figures, experts, or actual people relevant to the book's theme and topic
+      6. **HIGH CONFIDENCE**: Base suggestions on actual book content (0.7-0.9 confidence)
 
       For each character suggestion, provide:
       1. A unique name that fits the world
@@ -116,106 +135,16 @@ export class CharacterAgent extends AIAgent {
       }));
 
       console.log(`👤 Character Agent: Generated ${characterSuggestions.length} unique suggestions (duplicates avoided at generation time)`);
-      return characterSuggestions;
+      return {
+        suggestions: characterSuggestions,
+        context: planningContext // Return planning context for caching
+      };
     } catch (error) {
       console.error('Character Agent error:', error);
-      return [];
+      return {
+        suggestions: [],
+        context: planningContext || ''
+      };
     }
-  }
-
-  /**
-   * Filter out duplicate character suggestions using vector similarity
-   */
-  private async filterDuplicateCharacters(suggestions: CharacterSuggestion[], bookId: string): Promise<CharacterSuggestion[]> {
-    try {
-      const filteredSuggestions: CharacterSuggestion[] = [];
-      
-      for (const suggestion of suggestions) {
-        // Create search query from character details
-        const characterQuery = `${suggestion.name} ${suggestion.description} ${suggestion.role} ${suggestion.traits.join(' ')}`;
-        
-        // Find similar existing characters using vector search
-        const similarCharacters = await aiEmbeddingService.findSimilarCharacters(bookId, characterQuery, 5);
-        
-        // Check if any existing character is too similar (similarity > 0.8 means likely duplicate)
-        const isDuplicate = similarCharacters.some(existing => {
-          // Name similarity check
-          const nameSimilar = this.areStringsSimilar(suggestion.name, existing.name);
-          
-          // High vector similarity indicates conceptual duplicate
-          const highSimilarity = existing.similarity && existing.similarity > 0.8;
-          
-          return nameSimilar || highSimilarity;
-        });
-        
-        if (!isDuplicate) {
-          filteredSuggestions.push(suggestion);
-        } else {
-          console.log(`🚫 Character Agent: Filtered out duplicate suggestion "${suggestion.name}"`);
-        }
-      }
-      
-      return filteredSuggestions;
-    } catch (error) {
-      console.error('Error filtering duplicate characters:', error);
-      // Return original suggestions if filtering fails
-      return suggestions;
-    }
-  }
-
-  /**
-   * Check if two strings are similar (handles variations like "John" vs "Johnny")
-   */
-  private areStringsSimilar(str1: string, str2: string, threshold: number = 0.7): boolean {
-    const s1 = str1.toLowerCase().trim();
-    const s2 = str2.toLowerCase().trim();
-    
-    // Exact match
-    if (s1 === s2) return true;
-    
-    // Check if one is contained in the other (handles "John" vs "Johnny")
-    if (s1.includes(s2) || s2.includes(s1)) return true;
-    
-    // Simple Levenshtein-like similarity
-    const maxLen = Math.max(s1.length, s2.length);
-    if (maxLen === 0) return true;
-    
-    let matches = 0;
-    const minLen = Math.min(s1.length, s2.length);
-    
-    for (let i = 0; i < minLen; i++) {
-      if (s1[i] === s2[i]) matches++;
-    }
-    
-    const similarity = matches / maxLen;
-    return similarity >= threshold;
-  }
-
-  /**
-   * Build a focused content summary from vector search results
-   */
-  private buildRelevantContentSummary(chapters: Chapter[], relevantNotes: any[]): string {
-    const parts: string[] = [];
-
-    // Add brief chapter summary
-    if (chapters.length > 0) {
-      const chapterSummary = chapters
-        .slice(0, 3)
-        .map(ch => `Chapter ${ch.orderIndex + 1}: ${ch.title}`)
-        .join(', ');
-      parts.push(`Chapters: ${chapterSummary}${chapters.length > 3 ? ` (and ${chapters.length - 3} more)` : ''}`);
-    }
-
-    // Add relevant brainstorming notes
-    if (relevantNotes.length > 0) {
-      const notesSummary = relevantNotes
-        .map(note => `"${note.title}": ${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}`)
-        .join('\n');
-      parts.push(`Relevant Ideas:\n${notesSummary}`);
-    }
-
-    return parts.length > 0 
-      ? parts.join('\n\n') 
-      : 'No relevant content found. Base suggestions on book title and description.';
   }
 }

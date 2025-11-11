@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { s3Service } from '@/services/s3.service'
 
 export async function POST(
   request: NextRequest,
@@ -14,6 +15,8 @@ export async function POST(
     }
 
     const { bookId } = await params
+    const body = await request.json().catch(() => ({}))
+    const { regenerateAll = false } = body
 
     // Verify book ownership
     const book = await prisma.book.findFirst({
@@ -27,16 +30,18 @@ export async function POST(
       return NextResponse.json({ error: 'Book not found' }, { status: 404 })
     }
 
-    // Get all chapters that need audio generation
+    // Get chapters based on regenerateAll flag
     const chapters = await prisma.chapter.findMany({
       where: {
         bookId,
         content: {
           not: '',
         },
-        audioStatus: {
-          in: ['not_generated', 'failed'],
-        },
+        ...(regenerateAll ? {} : {
+          audioStatus: {
+            in: ['not_generated', 'failed'],
+          },
+        }),
       },
       select: {
         id: true,
@@ -56,7 +61,17 @@ export async function POST(
       })
     }
 
-    console.log(`🎙️  Starting batch audio generation for ${chapters.length} chapters in book: ${book.title}`)
+    console.log(`🎙️  Starting ${regenerateAll ? 'regeneration' : 'generation'} for ${chapters.length} chapters in book: ${book.title}`)
+
+    // Delete the complete audiobook file if it exists (chapters are being regenerated)
+    const completeAudiobookKey = `audiobooks/${bookId}/complete.mp3`
+    try {
+      await s3Service.deleteAudio(completeAudiobookKey)
+      console.log(`🗑️  Deleted existing complete audiobook - will be regenerated on next download`)
+    } catch (error) {
+      // File might not exist, that's okay
+      console.log(`ℹ️  No existing complete audiobook to delete`)
+    }
 
     // Trigger audio generation for each chapter asynchronously
     // Note: This doesn't wait for completion - it just starts the process

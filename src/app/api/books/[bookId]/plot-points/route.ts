@@ -47,13 +47,25 @@ export async function POST(
       chapterId: data.chapterId
     })
 
-    // 🚀 AUTO-GENERATE EMBEDDING for new plot point
+    // 🚀 AUTO-UPDATE UNIFIED VECTOR STORE for new plot point
     try {
-      const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-      await aiEmbeddingService.updatePlotPointEmbedding(plotPoint.id)
-      console.log(`✅ Generated embedding for plot point: ${plotPoint.id}`)
+      const { unifiedEmbeddingService } = await import('@/services/unified-embedding.service')
+      const content = `${plotPoint.title}\n\n${plotPoint.description || ''}`
+      await unifiedEmbeddingService.updateSourceEmbeddings({
+        bookId: resolvedParams.bookId,
+        sourceType: 'plotPoint',
+        sourceId: plotPoint.id,
+        content,
+        metadata: {
+          title: plotPoint.title,
+          type: plotPoint.type,
+          subplot: plotPoint.subplot,
+          orderIndex: plotPoint.orderIndex,
+        }
+      })
+      console.log(`✅ Updated unified vector store for plot point: ${plotPoint.id}`)
     } catch (embeddingError) {
-      console.error(`⚠️ Failed to generate embedding for plot point ${plotPoint.id}:`, embeddingError)
+      console.error(`⚠️ Failed to update vector store for plot point ${plotPoint.id}:`, embeddingError)
       // Don't fail the request if embedding generation fails
     }
     

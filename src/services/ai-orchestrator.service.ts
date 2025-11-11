@@ -106,7 +106,7 @@ export class AIOrchestrator {
     type: 'brainstorming' | 'characters' | 'locations' | 'plot' | 'timeline' | 'scenes',
     bookId: string,
     additionalContext?: any
-  ): Promise<any[]> {
+  ): Promise<any[] | any> {
     try {
       console.log(`🤖 AI Orchestrator: Analyzing ${type} for book:`, bookId);
       
@@ -128,14 +128,25 @@ export class AIOrchestrator {
           return await this.brainstormingAgent.analyze(chapters, bookId, additionalContext);
           
         case 'characters':
-          return await this.characterAgent.analyze(chapters, bookId);
+          // CharacterAgent returns { suggestions, context } instead of array
+          return await this.characterAgent.analyze(chapters, bookId, additionalContext);
           
         case 'locations':
-          return await this.locationAgent.analyze(chapters, bookId);
+          // LocationAgent returns { suggestions, context } instead of array
+          return await this.locationAgent.analyze(chapters, bookId, additionalContext);
+          
+        case 'scenes':
+          // SceneAgent returns { suggestions, context } instead of array
+          return await this.sceneAgent.analyze(chapters, bookId, additionalContext);
           
         case 'plot':
-          const subplot = additionalContext?.subplot || 'main';
-          return await this.plotAgent.analyze(chapters, bookId, subplot);
+          // Check if we should generate plot structures or individual plot points
+          if (additionalContext?.generateStructures) {
+            return await this.plotAgent.generatePlotStructures(chapters, bookId, additionalContext);
+          } else {
+            const subplot = additionalContext?.subplot || 'main';
+            return await this.plotAgent.analyze(chapters, bookId, subplot);
+          }
           
         case 'timeline':
           return await this.timelineAgent.analyze(chapters, bookId);

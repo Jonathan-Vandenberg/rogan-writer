@@ -49,6 +49,7 @@ export default function AIBookChat({ bookId, bookTitle, className }: AIBookChatP
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
   const [actualBookTitle, setActualBookTitle] = useState<string | undefined>(bookTitle)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -76,6 +77,40 @@ export default function AIBookChat({ bookId, bookTitle, className }: AIBookChatP
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  const regenerateEmbeddings = async () => {
+    setIsRegenerating(true)
+    try {
+      const response = await fetch(`/api/books/${bookId}/embeddings/regenerate`, {
+        method: 'POST',
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        // Add a system message to show success
+        const systemMessage: ChatMessage = {
+          id: `system-${Date.now()}`,
+          role: 'assistant',
+          content: `✅ Successfully regenerated embeddings! Now I can search across all your content:\n\n${Object.entries(data.stats || {}).map(([type, count]) => `- ${type}: ${count} chunks`).join('\n')}`,
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, systemMessage])
+      } else {
+        throw new Error(data.error || 'Failed to regenerate embeddings')
+      }
+    } catch (error) {
+      console.error('Error regenerating embeddings:', error)
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: `❌ Failed to regenerate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
@@ -221,13 +256,36 @@ export default function AIBookChat({ bookId, bookTitle, className }: AIBookChatP
       </DialogTrigger>
       <DialogContent className="max-w-6xl w-[90vw] h-[80vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2 border-b">
-          <DialogTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-blue-600" />
-            Chat about "{actualBookTitle || 'Your Book'}"
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Ask me anything about your book content and chapters!
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5 text-blue-600" />
+                Chat about "{actualBookTitle || 'Your Book'}"
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Ask me anything about your book content and chapters!
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={regenerateEmbeddings}
+              disabled={isRegenerating}
+              className="flex items-center gap-2"
+            >
+              {isRegenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Indexing...
+                </>
+              ) : (
+                <>
+                  <BookOpen className="h-4 w-4" />
+                  Index Book
+                </>
+              )}
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 flex flex-col overflow-hidden">

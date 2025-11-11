@@ -1,7 +1,7 @@
 import { Chapter } from '@prisma/client';
 import { AIAgent } from './base-agent';
 import { prisma } from '@/lib/db';
-import { aiEmbeddingService } from '../ai-embedding.service';
+import { PlanningContextService } from '../planning-context.service';
 
 export interface SceneCardSuggestion {
   id: string;
@@ -15,43 +15,63 @@ export interface SceneCardSuggestion {
 }
 
 export class SceneAgent extends AIAgent {
-  async analyze(chapters: Chapter[], bookId: string): Promise<SceneCardSuggestion[]> {
+  // Override with extended signature and different return type
+  async analyze(
+    chapters: Chapter[], 
+    bookId: string, 
+    additionalContext?: any
+  ): Promise<any> {
+    // Extract parameters from additionalContext
+    const existingSuggestions = additionalContext?.existingSuggestions as Array<{ title: string; description: string }> | undefined;
+    const cachedContext = additionalContext?.cachedContext as string | null | undefined;
+    const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
     console.log('🎬 Scene Agent: Starting analysis...');
     
-    // Generate search query for scene-related content
-    const searchQuery = `scene structure dramatic beats conflict resolution story beats scene purpose`;
-    
-    // Use comprehensive vector search to find ALL relevant content - FULL CONTEXT ACCESS
-    const relevantNotes = await aiEmbeddingService.findSimilarBrainstormingNotes(bookId, searchQuery, 100);
-    
-    // Create focused content summary from vector search results
-    const relevantContent = this.buildRelevantContentSummary(chapters, relevantNotes);
-    
-    // Get existing scene cards to avoid duplicates
+    // Get existing scene cards
     const existingScenes = await prisma.sceneCard.findMany({
       where: { bookId },
-      select: { title: true, description: true, purpose: true }
+      select: { title: true, description: true, purpose: true, conflict: true, outcome: true, createdAt: true },
+      orderBy: { createdAt: 'desc' }
     });
 
-    // Simple list of existing scenes for AI to avoid
-    const existingScenesList = existingScenes.length > 0 
-      ? existingScenes.map(scene => `(${scene.title}, ${scene.description?.substring(0, 100) || 'No description'}...)`).join(', ')
+    let planningContext: string;
+
+    // 💰 OPTIMIZATION: Use cached planning data if available
+    if (skipVectorSearch && cachedContext) {
+      console.log('🎬 ⚡ Using CACHED planning context - skipping database fetch to save time!');
+      planningContext = cachedContext;
+    } else {
+      console.log('🎬 📚 Fetching comprehensive planning data from database...');
+      // Fetch all planning data directly from database using shared service
+      planningContext = await PlanningContextService.buildPlanningContext(bookId);
+    }
+    
+    // Build DETAILED existing scenes context to avoid duplicates
+    // Include both saved scenes AND suggestions from current session
+    const allExisting = [
+      ...existingScenes.map(scene => ({ title: scene.title || 'Untitled', description: scene.description || '', purpose: scene.purpose })),
+      ...(existingSuggestions || []).map(s => ({ title: s.title, description: s.description, purpose: '' }))
+    ];
+    
+    const existingScenesList = allExisting.length > 0 
+      ? allExisting.map((scene, i) => `${i + 1}. ${scene.title}: ${scene.description.substring(0, 100)}${scene.description.length > 100 ? '...' : ''}`).join('\n')
       : 'None yet';
 
     const prompt = `
       Analyze this book content and suggest NEW scene cards for important scenes that need detailed planning.
 
-      RELEVANT CONTENT (from vector similarity search):
-      ${relevantContent}
+      COMPREHENSIVE BOOK PLANNING DATA:
+      ${planningContext}
 
-      These are the current scene cards, do not make suggestions based on these, create new scenes.
-      Current scene cards: [${existingScenesList}]
+      EXISTING SCENE CARDS (DO NOT DUPLICATE):
+      ${existingScenesList}
 
       CRITICAL REQUIREMENTS:
-      1. **CREATE COMPLETELY NEW SCENES**: Do not suggest anything similar to the existing scene cards listed above
-      2. Focus on scenes that are mentioned or implied but need detailed planning
-      3. Consider key dramatic moments, character interactions, and plot developments
-      4. Ensure each scene serves a specific narrative purpose
+      1. **AVOID ALL DUPLICATES**: Carefully review existing scene cards above. Do NOT suggest anything similar in title, description, or purpose
+      2. **USE ALL AVAILABLE CONTEXT**: Leverage plots, timeline, characters, locations, brainstorming ideas to identify key scenes that need planning
+      3. **FILL SCENE GAPS**: Identify dramatic moments, character interactions, or plot developments that need detailed planning
+      4. **BE SPECIFIC**: Reference actual content from the book (character names, locations, plot events)
+      5. **HIGH CONFIDENCE**: Base suggestions on actual book content (0.7-0.9 confidence)
 
       For each scene card suggestion, provide:
       1. A clear, compelling scene title
@@ -109,38 +129,16 @@ export class SceneAgent extends AIAgent {
       }));
 
       console.log(`🎬 Scene Agent: Generated ${sceneSuggestions.length} suggestions`);
-      return sceneSuggestions;
+      return {
+        suggestions: sceneSuggestions,
+        context: planningContext // Return planning context for caching
+      };
     } catch (error) {
       console.error('Scene Agent error:', error);
-      return [];
+      return {
+        suggestions: [],
+        context: planningContext || ''
+      };
     }
-  }
-
-  /**
-   * Build a focused content summary from vector search results
-   */
-  private buildRelevantContentSummary(chapters: Chapter[], relevantNotes: any[]): string {
-    const parts: string[] = [];
-
-    // Add brief chapter summary
-    if (chapters.length > 0) {
-      const chapterSummary = chapters
-        .slice(0, 3)
-        .map(ch => `Chapter ${ch.orderIndex + 1}: ${ch.title}`)
-        .join(', ');
-      parts.push(`Chapters: ${chapterSummary}${chapters.length > 3 ? ` (and ${chapters.length - 3} more)` : ''}`);
-    }
-
-    // Add relevant brainstorming notes
-    if (relevantNotes.length > 0) {
-      const notesSummary = relevantNotes
-        .map(note => `"${note.title}": ${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}`)
-        .join('\n');
-      parts.push(`Relevant Ideas:\n${notesSummary}`);
-    }
-
-    return parts.length > 0 
-      ? parts.join('\n\n') 
-      : 'No relevant content found. Base suggestions on book title and description.';
   }
 }

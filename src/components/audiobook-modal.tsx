@@ -17,23 +17,29 @@ import { cn } from '@/lib/utils'
 interface AudiobookModalProps {
   bookId: string
   className?: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export default function AudiobookModal({ bookId, className = '' }: AudiobookModalProps) {
-  const [open, setOpen] = useState(false)
+export default function AudiobookModal({ bookId, className = '', open: controlledOpen, onOpenChange }: AudiobookModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = onOpenChange || setInternalOpen
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm"
-          className={cn("gap-1", className)}
-        >
-          <Volume2 className="h-4 w-4" />
-          Audiobook
-        </Button>
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button 
+            variant="outline" 
+            size="sm"
+            className={cn("gap-1", className)}
+          >
+            <Volume2 className="h-4 w-4" />
+            Audiobook
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent 
         className="!max-w-none w-[70vw] max-h-[90vh] overflow-y-auto" 
         style={{ width: '50vw', maxWidth: 'none' }}

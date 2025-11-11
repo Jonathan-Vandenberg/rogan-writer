@@ -141,8 +141,14 @@ export class BookService {
       include: {
         chapters: {
           select: {
+            id: true,
+            title: true,
             wordCount: true,
-            content: true
+            content: true,
+            orderIndex: true
+          },
+          orderBy: {
+            orderIndex: 'asc'
           }
         },
         _count: {

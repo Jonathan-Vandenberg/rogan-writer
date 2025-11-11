@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Plus, Users, Search, Edit, Trash2, User, Crown, Star, Eye, Camera } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { AICharacterSuggestions } from './ai-character-suggestions'
 import type { Character, CharacterRole } from '@prisma/client'
 
 // Character role configurations
@@ -254,28 +255,34 @@ export function CharacterManagement({ bookId }: CharacterManagementProps) {
           </div>
         </div>
         
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Character
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create New Character</DialogTitle>
-              <DialogDescription>
-                Add a new character to your story
-              </DialogDescription>
-            </DialogHeader>
-            <CharacterForm
-              formData={formData}
-              setFormData={setFormData}
-              onSubmit={handleCreateCharacter}
-              submitLabel="Create Character"
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <AICharacterSuggestions 
+            bookId={bookId} 
+            onSuggestionAccepted={() => fetchCharacters()} 
+          />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Character
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Character</DialogTitle>
+                <DialogDescription>
+                  Add a new character to your story
+                </DialogDescription>
+              </DialogHeader>
+              <CharacterForm
+                formData={formData}
+                setFormData={setFormData}
+                onSubmit={handleCreateCharacter}
+                submitLabel="Create Character"
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}

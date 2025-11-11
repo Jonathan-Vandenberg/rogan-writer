@@ -46,6 +46,7 @@ interface ExportRequest {
   status: string
   fileUrl: string | null
   bookTitle: string
+  bookId: string
   createdAt: string
 }
 
@@ -88,6 +89,8 @@ export default function ExportPage() {
   const [loadingAudio, setLoadingAudio] = React.useState(false)
   const [bookTitle, setBookTitle] = React.useState<string>('')
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [downloadingChapter, setDownloadingChapter] = React.useState<string | null>(null)
+  const [downloadingComplete, setDownloadingComplete] = React.useState(false)
 
   // Fetch export stats and recent exports
   React.useEffect(() => {
@@ -249,18 +252,77 @@ export default function ExportPage() {
     }
   }
 
-  const downloadChapterAudio = async (chapterId: string, chapterTitle: string) => {
+  const handleDownloadAudiobook = async (bookId: string, fileName: string) => {
+    setDownloadingComplete(true)
     try {
-      const response = await fetch(`/api/books/${selectedBookId}/chapters/${chapterId}/audio`)
-      const data = await response.json()
+      console.log(`📥 Downloading audiobook for book: ${bookId}`)
+      const response = await fetch(`/api/books/${bookId}/audiobook/download`, {
+        method: 'POST',
+      })
 
-      if (data.success && data.chapter.signedUrl) {
-        // Create a link and trigger download with chapter title as filename
+      if (!response.ok) {
+        throw new Error('Failed to download audiobook')
+      }
+
+      const contentType = response.headers.get('content-type')
+      
+      // Check if response is JSON (signed URL) or binary (fallback)
+      if (contentType?.includes('application/json')) {
+        // New path: Get signed URL and trigger download
+        const data = await response.json()
+        console.log(`✅ Got signed URL, downloading from S3 (cached: ${data.cached})`)
+        
+        // Create a temporary link and trigger download
+        const a = document.createElement('a')
+        a.href = data.downloadUrl
+        a.download = data.fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } else {
+        // Fallback path: Stream through server
+        console.log(`⚠️ Streaming through server (fallback)`)
+        const blob = await response.blob()
+        
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }
+      
+      console.log(`✅ Audiobook downloaded successfully`)
+    } catch (error) {
+      console.error('Error downloading audiobook:', error)
+      alert('Failed to download audiobook. Please try again.')
+    } finally {
+      setDownloadingComplete(false)
+    }
+  }
+
+  const downloadChapterAudio = async (chapterId: string, chapterTitle: string) => {
+    setDownloadingChapter(chapterId)
+    try {
+      // Request download URL from backend
+      const response = await fetch(`/api/books/${selectedBookId}/chapters/${chapterId}/audio/download`, {
+        method: 'POST',
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to get download URL')
+      }
+      
+      const data = await response.json()
+      
+      if (data.downloadUrl) {
+        // Trigger download
         const link = document.createElement('a')
-        link.href = data.chapter.signedUrl
-        // Sanitize the chapter title for filename
-        const sanitizedTitle = chapterTitle.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_')
-        link.download = `${sanitizedTitle}.mp3`
+        link.href = data.downloadUrl
+        link.download = data.fileName
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -268,7 +330,10 @@ export default function ExportPage() {
         alert('Audio not available for this chapter')
       }
     } catch (error) {
+      console.error('Error downloading chapter:', error)
       alert(`Failed to download audio: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setDownloadingChapter(null)
     }
   }
 
@@ -288,36 +353,22 @@ export default function ExportPage() {
       }
     }
 
+    // Use book title as filename for complete audiobook
+    const sanitizedTitle = bookTitle.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_') || 'audiobook'
+    const fileName = `${sanitizedTitle}.mp3`
+    
+    // Use the new download handler which handles signed URLs and loading state
+    await handleDownloadAudiobook(selectedBookId, fileName)
+    
+    // Refresh export stats to show the new audiobook download
     try {
-      const response = await fetch(`/api/books/${selectedBookId}/audiobook/download`, {
-        method: 'POST',
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        // Use book title as filename for complete audiobook
-        const sanitizedTitle = bookTitle.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_') || 'audiobook'
-        link.download = `${sanitizedTitle}.mp3`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        // Refresh export stats to show the new audiobook download
-        const statsResponse = await fetch('/api/exports')
-        if (statsResponse.ok) {
-          const stats = await statsResponse.json()
-          setExportStats(stats)
-        }
-      } else {
-        const data = await response.json()
-        alert(`Download failed: ${data.error || 'Unknown error'}`)
+      const statsResponse = await fetch('/api/exports')
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json()
+        setExportStats(stats)
       }
     } catch (error) {
-      alert(`Failed to download audiobook: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.log('Failed to refresh export stats:', error)
     }
   }
 
@@ -441,12 +492,21 @@ export default function ExportPage() {
                 {/* Download Complete Audiobook Button */}
                 <Button
                   onClick={downloadCompleteAudiobook}
-                  disabled={!selectedBookId || audioChapters.filter(ch => ch.audioStatus === 'completed').length === 0}
+                  disabled={!selectedBookId || audioChapters.filter(ch => ch.audioStatus === 'completed').length === 0 || downloadingComplete}
                   className="w-full"
                   variant="default"
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Complete Audiobook ({audioChapters.filter(ch => ch.audioStatus === 'completed').length} chapters)
+                  {downloadingComplete ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Complete Audiobook ({audioChapters.filter(ch => ch.audioStatus === 'completed').length} chapters)
+                    </>
+                  )}
                 </Button>
 
                 {/* Individual Chapter Downloads */}
@@ -468,8 +528,13 @@ export default function ExportPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => downloadChapterAudio(chapter.id, chapter.title)}
+                            disabled={downloadingChapter === chapter.id}
                           >
-                            <Download className="h-4 w-4" />
+                            {downloadingChapter === chapter.id ? (
+                              <Clock className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
                           </Button>
                         ) : (
                           <Badge variant={
@@ -521,12 +586,24 @@ export default function ExportPage() {
                     <Badge variant={exportItem.status === 'COMPLETED' ? 'default' : 'secondary'}>
                       {formatStatus(exportItem.status)}
                     </Badge>
-                    {exportItem.status === 'COMPLETED' && exportItem.fileUrl && (
-                      <Button asChild size="sm" variant="outline">
-                        <a href={exportItem.fileUrl} download>
-                          <Download className="h-4 w-4" />
-                        </a>
-                      </Button>
+                    {exportItem.status === 'COMPLETED' && (
+                      <>
+                        {exportItem.format === 'MP3' ? (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleDownloadAudiobook(exportItem.bookId, exportItem.fileName)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        ) : exportItem.fileUrl ? (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={exportItem.fileUrl} download>
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        ) : null}
+                      </>
                     )}
                     {exportItem.status === 'FAILED' && (
                       <Button 
