@@ -64,27 +64,12 @@ export class LLMService {
    * Prevents creation during build time
    */
   private getOpenAIClient(): OpenAI {
-    // Prevent client creation during build/analysis phase
-    // Check if we're in a build context (Vercel sets this during builds)
-    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' || 
-                         process.env.VERCEL === '1' && !process.env.VERCEL_ENV;
-    
-    if (typeof window === 'undefined' && isBuildPhase) {
-      // During build, return a mock client that will never be used
-      // This prevents the error but the code should never reach here during build
-      throw new Error('OpenAI client cannot be created during build phase. This route should not be analyzed during build.');
-    }
-    
     if (!this.openai) {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        // During build, if no API key, don't throw - just return a placeholder
-        // The route is marked as force-dynamic so this shouldn't be called during build
-        if (isBuildPhase) {
-          throw new Error('OpenAI client cannot be created during build phase');
-        }
-        throw new Error('OpenAI API key not configured');
-      }
+      // During build phase, use a dummy key to prevent errors
+      // The route is force-dynamic so this will never actually be used during build
+      const apiKey = process.env.OPENAI_API_KEY || 'sk-build-dummy-key-not-used';
+      
+      // Create client - if it's a dummy key, it will fail at runtime, not build time
       this.openai = new OpenAI({ apiKey });
     }
     return this.openai;
