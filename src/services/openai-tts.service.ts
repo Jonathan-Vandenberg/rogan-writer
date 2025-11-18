@@ -37,8 +37,14 @@ export class OpenAITTSService {
   /**
    * Lazy initialization of OpenAI client
    * Only creates client when actually needed
+   * Prevents creation during build time
    */
   private getClient(): OpenAI {
+    // Prevent client creation during build/analysis phase
+    if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
+      throw new Error('OpenAI client cannot be created during build phase');
+    }
+    
     if (!this.client) {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {

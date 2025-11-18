@@ -31,6 +31,15 @@ export async function POST(
   { params }: { params: Promise<{ bookId: string }> }
 ) {
   try {
+    // Prevent execution during build phase
+    // This should never happen with force-dynamic, but adding as a safety check
+    if (process.env.NEXT_PHASE === 'phase-production-build' || 
+        (process.env.VERCEL === '1' && !process.env.VERCEL_ENV)) {
+      return Response.json({ 
+        error: 'This route cannot be executed during build phase' 
+      }, { status: 503 });
+    }
+    
     // Check authentication
     const session = await auth();
     if (!session?.user?.id) {

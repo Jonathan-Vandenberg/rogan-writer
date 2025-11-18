@@ -43,8 +43,14 @@ export class UnifiedEmbeddingService {
   /**
    * Lazy initialization of OpenAI client
    * Only creates client when actually needed, and handles missing API keys gracefully
+   * Prevents creation during build time
    */
   private getOpenAIClient(): OpenAI {
+    // Prevent client creation during build/analysis phase
+    if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
+      throw new Error('OpenAI client cannot be created during build phase');
+    }
+    
     if (!this.openaiClient) {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
