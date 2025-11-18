@@ -21,8 +21,13 @@ git push origin main
 - In Vercel project → Storage → Create Database → Postgres
 - **Database is created automatically** (empty, ready for migrations)
 - **pgvector extension enabled automatically** ✅
+- **⚠️ IMPORTANT**: After creating database:
+  1. Go to Storage → Your Database → Settings
+  2. Copy `POSTGRES_URL_NON_POOLING` value
+  3. Go to Settings → Environment Variables
+  4. Add `DATABASE_URL` = (paste the copied value)
+  5. Save and redeploy
 - **Schema created automatically** during build (via migrations) ✅
-- Connection string auto-added as `POSTGRES_PRISMA_URL`
 
 **Option B: External (Supabase/Neon/Railway)**
 - Create **empty** PostgreSQL database
