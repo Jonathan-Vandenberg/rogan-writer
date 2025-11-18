@@ -15,19 +15,22 @@ git push origin main
 3. Import your GitHub repository
 4. Click "Deploy" (Vercel auto-detects Next.js)
 
-### 3. Set Up Database
+### 3. Set Up Database ⚠️ DO THIS FIRST!
 
 **Option A: Vercel Postgres (Easiest)**
-- In Vercel project → Storage → Create Database → Postgres
-- **Database is created automatically** (empty, ready for migrations)
-- **pgvector extension enabled automatically** ✅
-- **⚠️ IMPORTANT**: After creating database:
-  1. Go to Storage → Your Database → Settings
-  2. Copy `POSTGRES_URL_NON_POOLING` value
-  3. Go to Settings → Environment Variables
-  4. Add `DATABASE_URL` = (paste the copied value)
-  5. Save and redeploy
-- **Schema created automatically** during build (via migrations) ✅
+
+**⚠️ CRITICAL: Set DATABASE_URL BEFORE deploying!**
+
+1. In Vercel project → Storage → Create Database → Postgres
+2. **Database is created automatically** (empty, ready for migrations)
+3. **pgvector extension enabled automatically** ✅
+4. **⚠️ REQUIRED**: Set `DATABASE_URL`:
+   - Go to Storage → Your Database → Settings
+   - Copy `POSTGRES_URL_NON_POOLING` value
+   - Go to Settings → Environment Variables
+   - Add `DATABASE_URL` = (paste the copied value)
+   - Save (don't deploy yet - continue to step 4)
+5. **Schema created automatically** during build (via migrations) ✅
 
 **Option B: External (Supabase/Neon/Railway)**
 - Create **empty** PostgreSQL database

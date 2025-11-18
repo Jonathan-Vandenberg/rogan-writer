@@ -35,19 +35,28 @@ Vercel will show you these settings (usually auto-detected correctly):
 
 #### Option A: Vercel Postgres (Recommended)
 
+**⚠️ CRITICAL: Do this BEFORE deploying!**
+
 1. In the project setup, click **"Create Database"** → **Postgres**
 2. Choose a name and region
 3. **Database is created automatically** ✅
 4. Connection strings are auto-added:
-   - `POSTGRES_PRISMA_URL` (for Prisma with connection pooling)
-   - `POSTGRES_URL_NON_POOLING` (direct connection)
-   - `DATABASE_URL` (may need to be set manually - see below)
+   - `POSTGRES_PRISMA_URL` (for Prisma with connection pooling) ✅
+   - `POSTGRES_URL_NON_POOLING` (direct connection) ✅
+   - `DATABASE_URL` - **⚠️ YOU MUST SET THIS MANUALLY** (see below)
 
-**Important**: After creating the database, check if `DATABASE_URL` was auto-added. If not:
-1. Go to Vercel → Storage → Your Database → Settings
-2. Copy the connection string
-3. Add it as `DATABASE_URL` in Environment Variables
-4. Or use `POSTGRES_URL_NON_POOLING` as `DATABASE_URL`
+**⚠️ REQUIRED STEP**: After creating the database:
+
+1. Go to **Vercel Dashboard** → Your Project → **Storage** → Your Database → **Settings**
+2. Copy the **`POSTGRES_URL_NON_POOLING`** connection string
+3. Go to **Settings** → **Environment Variables**
+4. Add new variable:
+   - **Key**: `DATABASE_URL`
+   - **Value**: Paste the `POSTGRES_URL_NON_POOLING` value
+   - **Environment**: Select all (Production, Preview, Development)
+5. **Save** (don't deploy yet - continue to step 5)
+
+**Note**: The build script will automatically use `POSTGRES_URL_NON_POOLING` as `DATABASE_URL` if `DATABASE_URL` isn't set, but it's better to set it explicitly.
 
 #### Option B: External PostgreSQL
 

@@ -16,7 +16,7 @@
     "analyze:test": "npx tsx scripts/test-analysis.ts",
     "analyze:book": "npx tsx scripts/analyze-and-populate-book.ts",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && next build"
+    "vercel-build": "source scripts/setup-db-url.sh && prisma migrate deploy && next build"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
