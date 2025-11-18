@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Enable standalone output for Docker (not for Vercel)
-  // Vercel has its own build system and doesn't need standalone mode
-  ...(process.env.VERCEL ? {} : { output: 'standalone' }),
+  // Standalone mode disabled for Vercel compatibility
+  // Vercel's build system doesn't work with standalone output mode
+  // This prevents the routes-manifest.json error
+  // For Docker deployments, you can enable it by uncommenting:
+  // output: 'standalone',
   
   // Optimize images
   images: {
