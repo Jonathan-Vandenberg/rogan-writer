@@ -43,7 +43,9 @@ export class OpenAITTSService {
     if (!this.client) {
       // During build phase, use a dummy key to prevent errors
       // The route is force-dynamic so this will never actually be used during build
-      const apiKey = process.env.OPENAI_API_KEY || 'sk-build-dummy-key-not-used';
+      // Handle both undefined and empty string cases
+      const envKey = process.env.OPENAI_API_KEY;
+      const apiKey = (envKey && envKey.trim()) || 'sk-build-dummy-key-not-used-during-build-phase';
       this.client = new OpenAI({ apiKey });
       console.log(`🎙️  OpenAI TTS Service initialized - Model: tts-1 (cheapest)`);
     }

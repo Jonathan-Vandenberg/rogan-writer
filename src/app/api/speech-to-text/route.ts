@@ -48,8 +48,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize OpenAI client with env key
+    // Handle both undefined and empty string cases, use dummy key during build
+    const envKey = process.env.OPENAI_API_KEY;
+    const apiKey = (envKey && envKey.trim()) || 'sk-build-dummy-key-not-used-during-build-phase';
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     })
 
     const formData = await request.formData()

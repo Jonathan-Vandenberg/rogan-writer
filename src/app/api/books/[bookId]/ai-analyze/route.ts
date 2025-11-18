@@ -12,6 +12,9 @@ import { prisma } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Prevent static generation - this route should never be analyzed during build
+export const revalidate = 0;
+
 interface AnalyzeRequest {
   type: 'brainstorming' | 'characters' | 'plot' | 'locations' | 'scenes' | 'full';
   options?: {

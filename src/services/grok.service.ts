@@ -45,12 +45,10 @@ export class GrokService {
       return;
     }
 
-    const apiKey = process.env.XAI_API_KEY;
+    const envKey = process.env.XAI_API_KEY;
+    // Handle both undefined and empty string cases, use dummy key during build
+    const apiKey = (envKey && envKey.trim()) || 'xai-build-dummy-key-not-used-during-build-phase';
     
-    if (!apiKey) {
-      throw new Error('XAI_API_KEY is not configured in environment variables');
-    }
-
     // X.AI uses OpenAI-compatible API
     this.client = new OpenAI({
       apiKey: apiKey,
