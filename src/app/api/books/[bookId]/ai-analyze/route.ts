@@ -8,6 +8,10 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
+// Force dynamic rendering to prevent build-time analysis
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 interface AnalyzeRequest {
   type: 'brainstorming' | 'characters' | 'plot' | 'locations' | 'scenes' | 'full';
   options?: {

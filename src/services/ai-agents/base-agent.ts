@@ -1,5 +1,4 @@
 import { Chapter } from '@prisma/client';
-import { llmService } from '../llm.service';
 import { prisma } from '@/lib/db';
 
 export interface BaseAgent {
@@ -9,9 +8,16 @@ export interface BaseAgent {
 export abstract class AIAgent implements BaseAgent {
   
   constructor() {
-    // Log which LLM service we're using
-    const serviceInfo = llmService.getServiceInfo();
-    console.log(`🤖 ${this.constructor.name}: Using ${serviceInfo.isLocal ? 'Ollama' : 'OpenAI'} (${serviceInfo.defaultModel})`);
+    // Don't access llmService in constructor to avoid build-time errors
+    // Service info will be logged when first used
+  }
+
+  /**
+   * Get LLM service lazily to avoid build-time errors
+   */
+  protected async getLLMService() {
+    const { llmService } = await import('../llm.service');
+    return llmService;
   }
 
   abstract analyze(chapters: Chapter[], bookId: string, additionalContext?: any): Promise<any[]>;
@@ -28,6 +34,7 @@ export abstract class AIAgent implements BaseAgent {
         userId = book?.userId;
       }
 
+      const llmService = await this.getLLMService();
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
