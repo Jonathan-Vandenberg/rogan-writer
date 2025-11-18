@@ -16,7 +16,7 @@
     "analyze:test": "npx tsx scripts/test-analysis.ts",
     "analyze:book": "npx tsx scripts/analyze-and-populate-book.ts",
     "postinstall": "prisma generate",
-    "vercel-build": "bash -c 'source scripts/setup-db-url.sh && export OPENAI_API_KEY=${OPENAI_API_KEY:-sk-build-dummy-key-not-used-during-build-phase} && (prisma migrate resolve --applied 20250804151031_add_chapter_title_formatting || true) && prisma migrate deploy && next build'"
+    "vercel-build": "bash -c 'source scripts/setup-db-url.sh && (prisma migrate resolve --applied 20250804151031_add_chapter_title_formatting || true) && prisma migrate deploy && next build'"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

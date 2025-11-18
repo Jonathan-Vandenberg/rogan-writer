@@ -4,6 +4,16 @@
 # This script ensures DATABASE_URL exists before Prisma runs
 # Note: This script must be sourced (not executed) to export variables
 
+# Set dummy OPENAI_API_KEY if not set (prevents build errors)
+# The OpenAI SDK checks process.env.OPENAI_API_KEY during build analysis
+# This MUST be set before any OpenAI imports are evaluated
+if [ -z "$OPENAI_API_KEY" ]; then
+  export OPENAI_API_KEY="sk-build-dummy-key-not-used-during-build-phase"
+  echo "✅ Set OPENAI_API_KEY to dummy value for build (prevents OpenAI SDK errors)"
+else
+  echo "✅ OPENAI_API_KEY is already set"
+fi
+
 # Check if DATABASE_URL is already set
 if [ -n "$DATABASE_URL" ]; then
   echo "✅ DATABASE_URL is already set"
