@@ -42,6 +42,7 @@ export class LLMService {
 
   constructor() {
     // Use OpenAI if API key is available, otherwise use local Ollama
+    // Don't create OpenAI client here to avoid build-time errors
     this.isLocal = !process.env.OPENAI_API_KEY;
     this.localEndpoint = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
     
@@ -51,13 +52,25 @@ export class LLMService {
       console.log('🦙 LLM Service: Using local Ollama at', this.localEndpoint);
       console.log('🎯 Default model:', this.defaultModel);
     } else {
-      // Use OpenAI
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
+      // Will use OpenAI, but client will be created lazily when needed
       this.defaultModel = 'gpt-4';
-      console.log('🤖 LLM Service: Using OpenAI GPT-4');
+      console.log('🤖 LLM Service: Will use OpenAI GPT-4 (lazy initialization)');
     }
+  }
+
+  /**
+   * Lazy initialization of OpenAI client
+   * Only creates client when actually needed
+   */
+  private getOpenAIClient(): OpenAI {
+    if (!this.openai) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured');
+      }
+      this.openai = new OpenAI({ apiKey });
+    }
+    return this.openai;
   }
 
   async chatCompletion(
@@ -302,11 +315,8 @@ export class LLMService {
     options: { model: string; temperature: number; max_tokens: number }
   ): Promise<LLMResponse> {
     try {
-      if (!this.openai) {
-        throw new Error('OpenAI client not initialized');
-      }
-
-      const response = await this.openai.chat.completions.create({
+      const openai = this.getOpenAIClient();
+      const response = await openai.chat.completions.create({
         model: options.model,
         messages: messages as any,
         temperature: options.temperature,

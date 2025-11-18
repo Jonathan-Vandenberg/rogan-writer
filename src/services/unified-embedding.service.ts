@@ -18,8 +18,6 @@ import { prisma } from '@/lib/db';
 import { decrypt, maskApiKey } from './encryption.service';
 import { OpenRouterService } from './openrouter.service';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 interface UpdateSourceParams {
   bookId: string;
   sourceType: 'chapter' | 'brainstorming' | 'character' | 'location' | 'plotPoint' | 'timeline' | 'sceneCard' | 'research';
@@ -40,13 +38,26 @@ interface SearchResult {
 export class UnifiedEmbeddingService {
   private readonly CHUNK_SIZE = 800; // characters per chunk
   private readonly OVERLAP = 100; // overlap between chunks for context
+  private openaiClient: OpenAI | null = null;
+
+  /**
+   * Lazy initialization of OpenAI client
+   * Only creates client when actually needed, and handles missing API keys gracefully
+   */
+  private getOpenAIClient(): OpenAI {
+    if (!this.openaiClient) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
+      }
+      this.openaiClient = new OpenAI({ apiKey });
+    }
+    return this.openaiClient;
+  }
 
   constructor() {
-    if (!process.env.OPENAI_API_KEY) {
-      console.warn('⚠️  No OPENAI_API_KEY found. Embeddings will fail. Set OPENAI_API_KEY in .env');
-    } else {
-      console.log('🌐 Unified Embeddings: Using OpenAI');
-    }
+    // Constructor doesn't initialize OpenAI client to avoid build-time errors
+    // Client will be initialized lazily when needed
   }
 
   /**
@@ -134,6 +145,7 @@ export class UnifiedEmbeddingService {
         throw new Error('OpenAI API key not configured and no OpenRouter configuration found');
       }
 
+      const openai = this.getOpenAIClient();
       const response = await openai.embeddings.create({
         model: "text-embedding-ada-002",
         input: cleanText,

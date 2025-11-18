@@ -11,12 +11,23 @@ import { prisma } from '@/lib/db';
 import { decrypt, maskApiKey } from './encryption.service';
 import { OpenRouterService } from './openrouter.service';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export class AIEmbeddingService {
+  private openaiClient: OpenAI | null = null;
+
+  /**
+   * Lazy initialization of OpenAI client
+   * Only creates client when actually needed, and handles missing API keys gracefully
+   */
+  private getOpenAIClient(): OpenAI {
+    if (!this.openaiClient) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
+      }
+      this.openaiClient = new OpenAI({ apiKey });
+    }
+    return this.openaiClient;
+  }
   /**
    * Generate embedding vector for given text
    * Uses OpenRouter if user has configured it, otherwise falls back to OpenAI
@@ -76,6 +87,7 @@ export class AIEmbeddingService {
         throw new Error('OpenAI API key not configured and no OpenRouter configuration found');
       }
 
+      const openai = this.getOpenAIClient();
       const response = await openai.embeddings.create({
         model: "text-embedding-ada-002",
         input: cleanText,
