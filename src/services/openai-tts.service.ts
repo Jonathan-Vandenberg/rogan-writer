@@ -28,22 +28,41 @@ export class OpenAITTSService {
   private maxChunkSize = 3000; // Conservative chunk size for sentence boundaries
 
   constructor() {
+    // Don't create OpenAI client here to avoid build-time errors
+    // Client will be initialized lazily when needed
     const apiKey = process.env.OPENAI_API_KEY;
     this.isEnabled = !!apiKey;
+  }
 
-    if (this.isEnabled && apiKey) {
+  /**
+   * Lazy initialization of OpenAI client
+   * Only creates client when actually needed
+   */
+  private getClient(): OpenAI {
+    if (!this.client) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
+      }
       this.client = new OpenAI({ apiKey });
       console.log(`🎙️  OpenAI TTS Service initialized - Model: tts-1 (cheapest)`);
-    } else {
-      console.log(`⚠️  OpenAI TTS Service disabled - No OPENAI_API_KEY configured`);
     }
+    return this.client;
   }
 
   /**
    * Check if OpenAI TTS service is available
    */
   async healthCheck(): Promise<boolean> {
-    return this.isEnabled && this.client !== null;
+    if (!this.isEnabled) {
+      return false;
+    }
+    try {
+      this.getClient();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -96,13 +115,10 @@ export class OpenAITTSService {
     model: string,
     chunkIndex: number
   ): Promise<Buffer> {
-    if (!this.client) {
-      throw new Error('OpenAI client not initialized');
-    }
-
     console.log(`🎙️  Generating chunk ${chunkIndex + 1} (${text.length} chars)...`);
 
-    const response = await this.client.audio.speech.create({
+    const client = this.getClient();
+    const response = await client.audio.speech.create({
       model: model as 'tts-1' | 'tts-1-hd',
       voice: voice as any,
       input: text,

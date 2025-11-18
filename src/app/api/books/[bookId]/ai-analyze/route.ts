@@ -5,8 +5,6 @@
  */
 
 import { NextRequest } from 'next/server';
-import { AIOrchestrator } from '@/services/ai-orchestrator.service';
-import { aiEmbeddingService } from '@/services/ai-embedding.service';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
@@ -52,6 +50,10 @@ export async function POST(
     }
 
     console.log(`Starting AI analysis for book ${bookId}, type: ${type}`);
+
+    // Dynamically import services to avoid build-time errors
+    const { aiEmbeddingService } = await import('@/services/ai-embedding.service');
+    const { AIOrchestrator } = await import('@/services/ai-orchestrator.service');
 
     // Generate embeddings if requested (useful for first-time setup)
     if (options.generateEmbeddings) {
@@ -258,6 +260,9 @@ export async function GET(
       return Response.json({ error: 'Book not found or access denied' }, { status: 404 });
     }
 
+    // Dynamically import service to avoid build-time errors
+    const { aiEmbeddingService } = await import('@/services/ai-embedding.service');
+    
     // Test vector search functionality
     const vectorSearchTest = await aiEmbeddingService.testVectorSearch(bookId);
 
