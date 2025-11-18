@@ -9,12 +9,16 @@ import { prisma } from '@/lib/db';
 
 export class PlanningContextService {
   // TOKEN BUDGET CONFIGURATION
-  // GPT-4 context: 128K tokens total
-  // Reserve space for: system prompt (~500), user prompt (~1000), response (~2000), existing suggestions (~2000)
-  // Planning context budget: ~8000 tokens (leaves ~116K for other data)
-  private static readonly MAX_PLANNING_TOKENS = 8000;
+  // Modern model context windows:
+  // - GPT-4 Turbo: 128K tokens
+  // - Claude 3.5 Sonnet: 200K tokens
+  // - Grok 4 Fast: 2M tokens
+  // - Grok 4: 256K tokens
+  // Reserve space for: system prompt (~500), user prompt (~2000), response (~8000), existing suggestions (~4000)
+  // Planning context budget: ~16000 tokens (leaves plenty of room for chapter content)
+  private static readonly MAX_PLANNING_TOKENS = 16000; // Increased from 8000 to leverage larger context windows
   private static readonly CHARS_PER_TOKEN = 4; // Approximate: 1 token ≈ 4 characters
-  private static readonly MAX_PLANNING_CHARS = PlanningContextService.MAX_PLANNING_TOKENS * PlanningContextService.CHARS_PER_TOKEN; // ~32,000 chars
+  private static readonly MAX_PLANNING_CHARS = PlanningContextService.MAX_PLANNING_TOKENS * PlanningContextService.CHARS_PER_TOKEN; // ~64,000 chars (increased from 32K)
 
   /**
    * Build comprehensive planning context directly from database

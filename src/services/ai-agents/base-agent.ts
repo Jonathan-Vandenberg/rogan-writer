@@ -1,5 +1,6 @@
 import { Chapter } from '@prisma/client';
 import { llmService } from '../llm.service';
+import { prisma } from '@/lib/db';
 
 export interface BaseAgent {
   analyze(chapters: Chapter[], bookId: string, additionalContext?: any): Promise<any[]>;
@@ -15,14 +16,26 @@ export abstract class AIAgent implements BaseAgent {
 
   abstract analyze(chapters: Chapter[], bookId: string, additionalContext?: any): Promise<any[]>;
 
-  protected async callOpenAI(prompt: string): Promise<string> {
+  protected async callOpenAI(prompt: string, bookId?: string): Promise<string> {
     try {
+      // Get userId from bookId for OpenRouter config
+      let userId: string | undefined;
+      if (bookId) {
+        const book = await prisma.book.findUnique({
+          where: { id: bookId },
+          select: { userId: true },
+        });
+        userId = book?.userId;
+      }
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           system_prompt: 'You are an expert AI assistant specialized in analyzing book content. Always return valid JSON responses.',
-          temperature: 0.7,
-          max_tokens: 2000,
+          // Don't set temperature - use user's default temperature
+          max_tokens: 8000, // Increased from 2000 - analysis can benefit from longer responses (GPT-4 Turbo: 128K context)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'default', // Use default temperature for analysis
         }
       );
 

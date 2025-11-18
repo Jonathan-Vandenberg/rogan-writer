@@ -274,13 +274,22 @@ export class AIAnalysisService {
         ]
       `;
 
+      // Get userId from bookId for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           system_prompt: "You are an expert story development consultant. Analyze book content and suggest brainstorming topics that will help authors improve their stories.",
           model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4o-mini', // Use default model in dev
-          temperature: 0.7,
-          max_tokens: 2000,
+          // Don't set temperature - use user's default temperature
+          max_tokens: 8000, // Increased from 2000 - comprehensive analysis needs longer responses (GPT-4 Turbo: 128K context)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'default', // Use default temperature for general analysis
         }
       );
 
@@ -382,13 +391,22 @@ export class AIAnalysisService {
         ]
       `;
 
+      // Get userId from bookId for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           system_prompt: "You are an expert character development consultant. Extract and suggest character profiles from story content.",
           model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4o-mini', // Use default model in dev
-          temperature: 0.6,
-          max_tokens: 1500,
+          // Don't set temperature - use user's suggestions temperature (creative)
+          max_tokens: 8000, // Increased from 1500 - character suggestions can be detailed (GPT-4 Turbo: 128K context)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'suggestions', // Use suggestions temperature for creative character ideas
         }
       );
 
@@ -655,12 +673,21 @@ export class AIAnalysisService {
         Ensure the JSON is valid and parseable.
       `;
 
+      // Get userId from bookId for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4o-mini', // Use default model in dev
-          max_tokens: 2000,
-          temperature: 0.7,
+          max_tokens: 8000, // Increased from 2000 - plot suggestions can be comprehensive (GPT-4 Turbo: 128K context)
+          // Don't set temperature - use user's suggestions temperature (creative)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'suggestions', // Use suggestions temperature for creative plot suggestions
         }
       );
 
@@ -945,11 +972,21 @@ export class AIAnalysisService {
         Ensure the JSON is valid and parseable.
       `;
 
+      // Get userId from bookId for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4o-mini', // Use default model in dev
-          temperature: 0.3
+          max_tokens: 8000, // Increased from 2000/3000 - comprehensive suggestions need longer responses (GPT-4 Turbo: 128K context)
+          // Don't set temperature - use user's suggestions temperature (creative)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'suggestions', // Use suggestions temperature for creative timeline/location/scene suggestions
         }
       );
 
@@ -1046,11 +1083,21 @@ export class AIAnalysisService {
         Ensure the JSON is valid and parseable.
       `;
 
+      // Get userId from bookId for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4o-mini', // Use default model in dev
-          temperature: 0.3
+          max_tokens: 8000, // Increased from 2000/3000 - comprehensive suggestions need longer responses (GPT-4 Turbo: 128K context)
+          // Don't set temperature - use user's suggestions temperature (creative)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'suggestions', // Use suggestions temperature for creative timeline/location/scene suggestions
         }
       );
 
@@ -1153,11 +1200,21 @@ export class AIAnalysisService {
         Ensure the JSON is valid and parseable.
       `;
 
+      // Get userId from bookId for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-4o-mini', // Use default model in dev
-          temperature: 0.3
+          max_tokens: 8000, // Increased from 2000/3000 - comprehensive suggestions need longer responses (GPT-4 Turbo: 128K context)
+          // Don't set temperature - use user's suggestions temperature (creative)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'suggestions', // Use suggestions temperature for creative timeline/location/scene suggestions
         }
       );
 

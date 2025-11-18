@@ -2,9 +2,13 @@
  * Grok AI Service
  * Integrates with X.AI's Grok API for advanced editing capabilities
  * Uses the grok-4-fast-non-reasoning model with massive context window
+ * Supports both direct X.AI API and OpenRouter (if user has configured it)
  */
 
 import OpenAI from 'openai';
+import { prisma } from '@/lib/db';
+import { decrypt, maskApiKey } from './encryption.service';
+import { OpenRouterService } from './openrouter.service';
 
 interface GrokMessage {
   role: 'system' | 'user' | 'assistant';
@@ -16,6 +20,7 @@ interface GrokChatOptions {
   max_tokens?: number;
   stream?: boolean;
   model?: string;
+  userId?: string; // Optional user ID to check for OpenRouter config
 }
 
 interface GrokResponse {
@@ -28,10 +33,18 @@ interface GrokResponse {
 }
 
 export class GrokService {
-  private client: OpenAI;
+  private client: OpenAI | null = null;
   private defaultModel: string = 'grok-4-fast-non-reasoning';
+  private isInitialized: boolean = false;
 
-  constructor() {
+  /**
+   * Lazy initialization - only create client when actually needed
+   */
+  private initialize() {
+    if (this.isInitialized && this.client) {
+      return;
+    }
+
     const apiKey = process.env.XAI_API_KEY;
     
     if (!apiKey) {
@@ -44,22 +57,120 @@ export class GrokService {
       baseURL: 'https://api.x.ai/v1',
     });
 
+    this.isInitialized = true;
     console.log('🤖 Grok Service initialized with default model:', this.defaultModel);
   }
 
   /**
    * Send a chat completion request to Grok
+   * Checks for user's OpenRouter API key first, falls back to direct X.AI API
    */
   async chatCompletion(
     messages: GrokMessage[],
     options: GrokChatOptions = {}
   ): Promise<GrokResponse> {
     const {
-      temperature = 0.7,
-      max_tokens = 4000,
+      temperature: providedTemperature,
+      max_tokens = 16000, // Increased from 4000 - Grok 4 Fast supports 2M token context, Grok 4 supports 256K
       stream = false,
       model = this.defaultModel,
+      userId,
     } = options;
+
+    // Get user's default temperature if userId is provided and temperature not explicitly set
+    let temperature = providedTemperature;
+    if (!providedTemperature && userId) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            defaultModelTemperature: true,
+          },
+        });
+        if (user?.defaultModelTemperature !== null && user?.defaultModelTemperature !== undefined) {
+          temperature = user.defaultModelTemperature;
+          console.log(`🌡️  [Grok Service] Using user's default temperature: ${temperature}`);
+        } else {
+          temperature = 0.7; // Default
+        }
+      } catch (error) {
+        console.error('Error fetching user temperature settings:', error);
+        temperature = 0.7; // Default
+      }
+    } else if (!providedTemperature) {
+      temperature = 0.7; // Default
+    }
+
+    // Check for OpenRouter configuration if user ID is provided
+    if (userId) {
+      try {
+        console.log(`🔍 [Grok Service] Checking for user's OpenRouter API key in database (userId: ${userId})`);
+        console.log(`🔍 [Grok Service] NOT checking environment variables - using user's database-stored key only`);
+        
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            openRouterApiKey: true,
+          },
+        });
+
+        if (user?.openRouterApiKey) {
+          try {
+            const apiKey = decrypt(user.openRouterApiKey);
+            const maskedKey = maskApiKey(apiKey);
+            
+            console.log(`✅ [Grok Service] Found user's OpenRouter API key in database: ${maskedKey}`);
+            console.log(`✅ [Grok Service] Using USER'S API KEY from database (NOT env variables)`);
+            console.log(`🔒 [Grok Service] Environment XAI_API_KEY: ${process.env.XAI_API_KEY ? 'EXISTS but NOT USED' : 'NOT SET (as expected)'}`);
+            
+            // Map Grok model names to OpenRouter format
+            // OpenRouter uses: x-ai/grok-4-fast-non-reasoning, x-ai/grok-4-fast-reasoning
+            const openRouterModel = model.startsWith('grok-') 
+              ? `x-ai/${model}` 
+              : `x-ai/grok-4-fast-non-reasoning`;
+            
+            console.log(`🌐 [Grok Service] Using OpenRouter with model: ${openRouterModel}`);
+            
+            const openRouterService = new OpenRouterService(apiKey);
+            const response = await openRouterService.chatCompletion(
+              messages.map(m => ({ role: m.role, content: m.content })),
+              {
+                model: openRouterModel,
+                temperature,
+                max_tokens,
+              }
+            );
+
+            return {
+              content: response.content,
+              usage: response.usage,
+            };
+          } catch (openRouterError) {
+            console.error('OpenRouter API error for Grok:', openRouterError);
+            console.log(`ℹ️  [Grok Service] Falling back to direct X.AI API`);
+            // Fall through to direct X.AI API
+          }
+        } else {
+          console.log(`ℹ️  [Grok Service] No OpenRouter API key found in user's database record (userId: ${userId})`);
+          console.log(`ℹ️  [Grok Service] Falling back to direct X.AI API from env`);
+        }
+      } catch (error) {
+        console.error('Error checking OpenRouter config for Grok, falling back to X.AI:', error);
+        // Fall through to direct X.AI API
+      }
+    }
+
+    // Fall back to direct X.AI API
+    this.initialize(); // Lazy initialization
+    
+    if (!this.client) {
+      throw new Error('Grok service not configured. Set XAI_API_KEY in your environment variables or configure OpenRouter API key in settings.');
+    }
+
+    if (userId) {
+      console.log(`✅ [Grok Service] Using X.AI API key from environment variables (NOT user's OpenRouter key)`);
+      console.log(`🔒 [Grok Service] Environment XAI_API_KEY: ${process.env.XAI_API_KEY ? 'EXISTS' : 'NOT SET'}`);
+    }
 
     try {
       console.log(`📤 Grok API request with ${messages.length} messages using model: ${model}`);
@@ -102,6 +213,7 @@ export class GrokService {
   /**
    * Stream a chat completion response from Grok
    * Useful for real-time editor feedback
+   * Checks for user's OpenRouter API key first, falls back to direct X.AI API
    */
   async streamChatCompletion(
     messages: GrokMessage[],
@@ -109,10 +221,91 @@ export class GrokService {
     options: GrokChatOptions = {}
   ): Promise<void> {
     const {
-      temperature = 0.7,
-      max_tokens = 4000,
+      temperature: providedTemperature,
+      max_tokens = 16000, // Increased from 4000 - Grok 4 Fast supports 2M token context, Grok 4 supports 256K
       model = this.defaultModel,
+      userId,
     } = options;
+
+    // Get user's default temperature if userId is provided and temperature not explicitly set
+    let temperature = providedTemperature;
+    if (!providedTemperature && userId) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            defaultModelTemperature: true,
+          },
+        });
+        if (user?.defaultModelTemperature !== null && user?.defaultModelTemperature !== undefined) {
+          temperature = user.defaultModelTemperature;
+          console.log(`🌡️  [Grok Service] Using user's default temperature for streaming: ${temperature}`);
+        } else {
+          temperature = 0.7; // Default
+        }
+      } catch (error) {
+        console.error('Error fetching user temperature settings:', error);
+        temperature = 0.7; // Default
+      }
+    } else if (!providedTemperature) {
+      temperature = 0.7; // Default
+    }
+
+    // Check for OpenRouter configuration if user ID is provided
+    if (userId) {
+      try {
+        console.log(`🔍 [Grok Service] Checking for user's OpenRouter API key in database (userId: ${userId})`);
+        
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            openRouterApiKey: true,
+          },
+        });
+
+        if (user?.openRouterApiKey) {
+          try {
+            const apiKey = decrypt(user.openRouterApiKey);
+            const maskedKey = maskApiKey(apiKey);
+            
+            console.log(`✅ [Grok Service] Found user's OpenRouter API key in database: ${maskedKey}`);
+            console.log(`✅ [Grok Service] Using USER'S API KEY from database via OpenRouter for streaming`);
+            
+            // Map Grok model names to OpenRouter format
+            const openRouterModel = model.startsWith('grok-') 
+              ? `x-ai/${model}` 
+              : `x-ai/grok-4-fast-non-reasoning`;
+            
+            console.log(`🌐 [Grok Service] Streaming via OpenRouter with model: ${openRouterModel}`);
+            
+            const openRouterService = new OpenRouterService(apiKey);
+            
+            // Note: OpenRouterService doesn't currently support streaming
+            // For streaming requests, we fall back to direct X.AI API
+            // Non-streaming requests will use OpenRouter if user has configured it
+            console.log(`ℹ️  [Grok Service] Streaming not yet supported via OpenRouter, falling back to direct X.AI API`);
+            // Fall through to direct X.AI API for streaming
+          } catch (openRouterError) {
+            console.error('OpenRouter API error for Grok streaming:', openRouterError);
+            // Fall through to direct X.AI API
+          }
+        }
+      } catch (error) {
+        console.error('Error checking OpenRouter config for Grok streaming:', error);
+        // Fall through to direct X.AI API
+      }
+    }
+
+    // Fall back to direct X.AI API for streaming
+    this.initialize(); // Lazy initialization
+    
+    if (!this.client) {
+      throw new Error('Grok service not configured. Set XAI_API_KEY in your environment variables or configure OpenRouter API key in settings.');
+    }
+
+    if (userId) {
+      console.log(`✅ [Grok Service] Using X.AI API key from environment variables for streaming (NOT user's OpenRouter key)`);
+    }
 
     try {
       console.log(`📤 Grok streaming request with ${messages.length} messages using model: ${model}`);

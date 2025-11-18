@@ -6,15 +6,17 @@
  * for efficient semantic search.
  * 
  * Architecture:
- * - Embeddings: Always uses OpenAI ada-002 (1536 dimensions)
+ * - Embeddings: Uses OpenAI ada-002 by default, or OpenRouter if user-configured
  * - LLM: Can use either OpenAI or Ollama (configured separately in llm.service.ts)
  * 
  * This allows you to use a free local LLM (Ollama) while still getting high-quality
- * embeddings from OpenAI for semantic search.
+ * embeddings from OpenAI for semantic search, or use OpenRouter for custom models.
  */
 
 import OpenAI from 'openai';
 import { prisma } from '@/lib/db';
+import { decrypt, maskApiKey } from './encryption.service';
+import { OpenRouterService } from './openrouter.service';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -75,15 +77,61 @@ export class UnifiedEmbeddingService {
   }
 
   /**
-   * Generate embedding for text using OpenAI
-   * Note: Always uses OpenAI for embeddings (1536 dimensions) regardless of LLM choice
+   * Generate embedding for text
+   * Uses OpenRouter if user has configured it, otherwise falls back to OpenAI
    */
-  private async generateEmbedding(text: string): Promise<number[]> {
+  private async generateEmbedding(text: string, userId?: string): Promise<number[]> {
     try {
       const cleanText = text.slice(0, 8000).trim();
       
       if (!cleanText) {
         throw new Error('Text is empty');
+      }
+
+      // Check for OpenRouter configuration if user ID is provided
+      if (userId) {
+        try {
+          console.log(`🔍 [Unified Embedding Service] Checking for user's OpenRouter API key in database (userId: ${userId})`);
+          console.log(`🔍 [Unified Embedding Service] NOT checking environment variables - using user's database-stored key only`);
+          
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              openRouterApiKey: true,
+              openRouterEmbeddingModel: true,
+            },
+          });
+
+          if (user?.openRouterApiKey && user.openRouterEmbeddingModel) {
+            const apiKey = decrypt(user.openRouterApiKey);
+            const maskedKey = maskApiKey(apiKey);
+            
+            console.log(`✅ [Unified Embedding Service] Found user's OpenRouter API key in database: ${maskedKey}`);
+            console.log(`✅ [Unified Embedding Service] Using USER'S API KEY from database (NOT env variables)`);
+            console.log(`🔒 [Unified Embedding Service] Environment OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY ? 'EXISTS but NOT USED' : 'NOT SET (as expected)'}`);
+            console.log(`📝 [Unified Embedding Service] Using embedding model: ${user.openRouterEmbeddingModel}`);
+            
+            const openRouterService = new OpenRouterService(apiKey);
+            
+            const response = await openRouterService.generateEmbedding(
+              cleanText,
+              user.openRouterEmbeddingModel
+            );
+
+            return response.embedding;
+          } else {
+            console.log(`ℹ️  [Unified Embedding Service] No OpenRouter API key or embedding model found in user's database record (userId: ${userId})`);
+            console.log(`ℹ️  [Unified Embedding Service] Falling back to OpenAI from env`);
+          }
+        } catch (error) {
+          console.error('Error using OpenRouter for embeddings, falling back to OpenAI:', error);
+          // Fall through to OpenAI
+        }
+      }
+
+      // Default: Use OpenAI
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key not configured and no OpenRouter configuration found');
       }
 
       const response = await openai.embeddings.create({
@@ -107,6 +155,13 @@ export class UnifiedEmbeddingService {
     console.log(`🔄 Updating embeddings for ${sourceType}:${sourceId}`);
 
     try {
+      // Get userId from book for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+
       // Delete old chunks for this source
       await prisma.bookEmbeddingChunk.deleteMany({
         where: { bookId, sourceType, sourceId }
@@ -124,7 +179,7 @@ export class UnifiedEmbeddingService {
 
       // Create embeddings for each chunk
       for (let i = 0; i < chunks.length; i++) {
-        const embedding = await this.generateEmbedding(chunks[i]);
+        const embedding = await this.generateEmbedding(chunks[i], userId);
         
         await prisma.$executeRaw`
           INSERT INTO book_embedding_chunks 
@@ -181,7 +236,14 @@ export class UnifiedEmbeddingService {
     try {
       console.log(`🔍 Searching book ${bookId} for: "${query}"`);
       
-      const queryEmbedding = await this.generateEmbedding(query);
+      // Get userId from book for OpenRouter config
+      const book = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { userId: true },
+      });
+      const userId = book?.userId;
+      
+      const queryEmbedding = await this.generateEmbedding(query, userId);
       
       const results = await prisma.$queryRaw<SearchResult[]>`
         SELECT 

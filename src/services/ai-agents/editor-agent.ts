@@ -46,6 +46,13 @@ export class EditorAgent {
     userRequest: string,
     conversationHistory: ConversationMessage[]
   ): Promise<{ chapters: Chapter[]; reasoning: string }> {
+    // Get userId from bookId
+    const book = await prisma.book.findUnique({
+      where: { id: bookId },
+      select: { userId: true },
+    });
+    const userId = book?.userId;
+
     // Fetch all chapters with basic info
     const allChapters = await prisma.chapter.findMany({
       where: { bookId },
@@ -96,8 +103,9 @@ RULES:
       const response = await grokService.chatCompletion([
         { role: 'user', content: analysisPrompt }
       ], {
-        temperature: 0.3,
-        max_tokens: 500,
+        // Don't set temperature - let Grok service use user's default temperature
+        max_tokens: 2000, // Increased from 500 - chapter analysis can be more detailed (Grok 4 Fast: 2M context)
+        userId, // Pass userId to use user's OpenRouter API key and temperature
       });
 
       const analysis = this.parseJSON(response.content);
@@ -156,7 +164,7 @@ RULES:
     includePlanningData: boolean = false,
     grokModel: string = 'grok-4-fast-non-reasoning'
   ): Promise<EditResponse> {
-    // Get book metadata first
+    // Get book metadata and userId first
     const book = await prisma.book.findUnique({
       where: { id: bookId },
       select: {
@@ -164,8 +172,10 @@ RULES:
         description: true,
         genre: true,
         targetWords: true,
+        userId: true,
       },
     });
+    const userId = book?.userId;
 
     // Fetch planning data if requested (do this BEFORE checking for chapters)
     let planningContext = '';
@@ -302,9 +312,10 @@ IMPORTANT:
       const response = await grokService.chatCompletion([
         { role: 'user', content: fullPrompt }
       ], {
-        temperature: 0.5, // Lower temperature for more conservative, focused edits
+        // Don't set temperature - let Grok service use user's default temperature
         max_tokens: 16000, // Increased for large responses
         model: grokModel,
+        userId, // Pass userId to use user's OpenRouter API key and temperature
       });
 
       console.log(`📦 Response size: ${response.content.length} characters`);
@@ -341,8 +352,10 @@ IMPORTANT:
         description: true,
         genre: true,
         targetWords: true,
+        userId: true,
       },
     });
+    const userId = book?.userId;
 
     let planningContext = '';
     if (includePlanningData) {
@@ -416,9 +429,10 @@ Please analyze the planning data and provide a helpful response. If you have sug
       [{ role: 'user', content: fullPrompt }],
       onChunk,
       {
-        temperature: 0.5,
+        // Don't set temperature - let Grok service use user's default temperature
         max_tokens: 16000,
         model: grokModel,
+        userId, // Pass userId to use user's OpenRouter API key and temperature
       }
     );
   }

@@ -20,6 +20,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { UserSettingsModal } from "@/components/settings/user-settings-modal"
 
 const COLOR_THEMES = [
   { value: 'default', label: 'Gray', color: 'bg-gray-500' },
@@ -34,6 +35,8 @@ export function UserNav() {
   const { data: session, status } = useSession()
   const { theme, setTheme } = useTheme()
   const { colorTheme, setColorTheme } = useColorTheme()
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
+  const [dropdownOpen, setDropdownOpen] = React.useState(false)
 
   if (status === "loading") {
     return (
@@ -65,7 +68,7 @@ export function UserNav() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
@@ -89,7 +92,10 @@ export function UserNav() {
             <User className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => {
+            setDropdownOpen(false)
+            setIsSettingsOpen(true)
+          }}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>
@@ -136,6 +142,7 @@ export function UserNav() {
           <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <UserSettingsModal open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
     </DropdownMenu>
   )
 } 

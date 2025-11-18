@@ -3,10 +3,13 @@
  * 
  * Handles OpenAI embeddings generation and vector similarity search
  * for the AI Planning Assistant functionality.
+ * Supports OpenRouter for user-configured embedding models.
  */
 
 import OpenAI from 'openai';
 import { prisma } from '@/lib/db';
+import { decrypt, maskApiKey } from './encryption.service';
+import { OpenRouterService } from './openrouter.service';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -15,15 +18,62 @@ const openai = new OpenAI({
 
 export class AIEmbeddingService {
   /**
-   * Generate embedding vector for given text using OpenAI
+   * Generate embedding vector for given text
+   * Uses OpenRouter if user has configured it, otherwise falls back to OpenAI
    */
-  async generateEmbedding(text: string): Promise<number[]> {
+  async generateEmbedding(text: string, userId?: string): Promise<number[]> {
     try {
       // Limit text length to avoid token limits (8000 chars ≈ 2000 tokens)
       const cleanText = text.slice(0, 8000).trim();
       
       if (!cleanText) {
         throw new Error('Text is empty or too short for embedding generation');
+      }
+
+      // Check for OpenRouter configuration if user ID is provided
+      if (userId) {
+        try {
+          console.log(`🔍 [Embedding Service] Checking for user's OpenRouter API key in database (userId: ${userId})`);
+          console.log(`🔍 [Embedding Service] NOT checking environment variables - using user's database-stored key only`);
+          
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              openRouterApiKey: true,
+              openRouterEmbeddingModel: true,
+            },
+          });
+
+          if (user?.openRouterApiKey && user.openRouterEmbeddingModel) {
+            const apiKey = decrypt(user.openRouterApiKey);
+            const maskedKey = maskApiKey(apiKey);
+            
+            console.log(`✅ [Embedding Service] Found user's OpenRouter API key in database: ${maskedKey}`);
+            console.log(`✅ [Embedding Service] Using USER'S API KEY from database (NOT env variables)`);
+            console.log(`🔒 [Embedding Service] Environment OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY ? 'EXISTS but NOT USED' : 'NOT SET (as expected)'}`);
+            console.log(`📝 [Embedding Service] Using embedding model: ${user.openRouterEmbeddingModel}`);
+            
+            const openRouterService = new OpenRouterService(apiKey);
+            
+            const response = await openRouterService.generateEmbedding(
+              cleanText,
+              user.openRouterEmbeddingModel
+            );
+
+            return response.embedding;
+          } else {
+            console.log(`ℹ️  [Embedding Service] No OpenRouter API key or embedding model found in user's database record (userId: ${userId})`);
+            console.log(`ℹ️  [Embedding Service] Falling back to OpenAI from env`);
+          }
+        } catch (error) {
+          console.error('Error using OpenRouter for embeddings, falling back to OpenAI:', error);
+          // Fall through to OpenAI
+        }
+      }
+
+      // Default: Use OpenAI
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key not configured and no OpenRouter configuration found');
       }
 
       const response = await openai.embeddings.create({

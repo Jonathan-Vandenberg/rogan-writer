@@ -25,6 +25,18 @@ model User {
   defaultBookFormat String @default("6x9") // book size preference
   dailyWordGoal    Int    @default(500)
 
+  // OpenRouter API configuration
+  openRouterApiKey          String? @db.Text // Encrypted API key
+  openRouterEmbeddingModel String? // Selected model for embeddings (e.g., "openai/text-embedding-ada-002")
+  openRouterResearchModel   String? // Selected model for research
+  openRouterSuggestionsModel String? // Selected model for suggestions
+  openRouterDefaultModel    String? // Default model for general LLM tasks
+  
+  // Temperature settings (0-1, where 0.7 is default)
+  defaultModelTemperature   Float? @default(0.7) // Temperature for default model
+  researchModelTemperature  Float? @default(0.3) // Temperature for research model (lower for accuracy)
+  suggestionsModelTemperature Float? @default(0.8) // Temperature for suggestions model (higher for creativity)
+
   // NextAuth relationships
   accounts Account[]
   sessions Session[]
@@ -116,6 +128,7 @@ model Book {
   // Relationships
   chapters          Chapter[]
   brainstormingNotes BrainstormingNote[]
+  brainstormingWorkspace BrainstormingWorkspace?
   characters        Character[]
   locations         Location[]
   plotPoints        PlotPoint[]
@@ -216,6 +229,19 @@ model BrainstormingNote {
   book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@map("brainstorming_notes")
+}
+
+model BrainstormingWorkspace {
+  id        String   @id @default(cuid())
+  data      String?  @db.Text // JSON string of Excalidraw data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Book relationship (one-to-one)
+  bookId String @unique
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("brainstorming_workspaces")
 }
 
 // ===== CHARACTER & WORLD BUILDING =====

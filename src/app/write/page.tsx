@@ -4,6 +4,7 @@ import * as React from "react"
 import { BookPage } from "@/components/writing/book-page"
 import { TypographyControls } from "@/components/writing/typography-controls"
 import { PageNavigation } from "@/components/writing/page-navigation"
+import { BrainstormingWorkspace } from "@/components/writing/brainstorming-workspace"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useSelectedBook } from "@/contexts/selected-book-context"
@@ -25,7 +26,8 @@ import {
   Clock,
   Target,
   BookOpen,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -663,6 +665,9 @@ export default function WritePage() {
                 saveTypographySettings(newSettings)
               }}
             />
+
+            {/* Brainstorming Workspace */}
+            <BrainstormingWorkspace />
 
             {/* Research Panel removed - now using modal in header */}
 

@@ -1,6 +1,7 @@
 /**
- * AWS S3 Service for Audio File Storage
+ * AWS S3 Service for Audio and Image File Storage
  * Handles uploading, downloading, and managing audio files for audiobook generation
+ * and images for brainstorming workspace
  */
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
@@ -14,7 +15,21 @@ interface UploadAudioParams {
   contentType?: string;
 }
 
+interface UploadImageParams {
+  imageBuffer: Buffer;
+  bookId: string;
+  fileName: string;
+  contentType?: string;
+}
+
 interface S3AudioFile {
+  s3Key: string;
+  url: string;
+  signedUrl: string;
+  size: number;
+}
+
+interface S3ImageFile {
   s3Key: string;
   url: string;
   signedUrl: string;
@@ -195,6 +210,67 @@ export class S3Service {
    */
   async getAudioBuffer(s3Key: string): Promise<Buffer> {
     return this.downloadAudio(s3Key);
+  }
+
+  /**
+   * Upload image file to S3
+   */
+  async uploadImage(params: UploadImageParams): Promise<S3ImageFile> {
+    const { imageBuffer, bookId, fileName, contentType = 'image/png' } = params;
+
+    // Generate S3 key with organized folder structure
+    const s3Key = `brainstorming/${bookId}/images/${fileName}`;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+        Body: imageBuffer,
+        ContentType: contentType,
+        Metadata: {
+          bookId,
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+
+      await this.client.send(command);
+
+      // Generate public URL
+      const url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
+
+      // Generate signed URL (valid for 7 days)
+      const signedUrl = await this.getSignedUrl(s3Key, 7 * 24 * 60 * 60);
+
+      console.log(`✅ Image uploaded to S3: ${s3Key}`);
+
+      return {
+        s3Key,
+        url,
+        signedUrl,
+        size: imageBuffer.length,
+      };
+    } catch (error) {
+      console.error('❌ Error uploading image to S3:', error);
+      throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete image file from S3
+   */
+  async deleteImage(s3Key: string): Promise<void> {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+      });
+
+      await this.client.send(command);
+      console.log(`🗑️  Image deleted from S3: ${s3Key}`);
+    } catch (error) {
+      console.error('❌ Error deleting image from S3:', error);
+      throw new Error(`Failed to delete image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }
 

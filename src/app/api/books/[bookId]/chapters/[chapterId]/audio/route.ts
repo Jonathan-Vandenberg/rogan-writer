@@ -73,11 +73,37 @@ export async function POST(
       const estimatedCost = openaiTTSService.estimateCost(chapter.content.length);
       console.log(`💰 Estimated cost: $${estimatedCost.toFixed(4)}`);
 
+      // Map speakerName to OpenAI voice (default to 'alloy' if not recognized)
+      // Available voices: 'alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'
+      const voiceMap: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'> = {
+        'alloy': 'alloy',
+        'echo': 'echo',
+        'fable': 'fable',
+        'onyx': 'onyx',
+        'nova': 'nova',
+        'shimmer': 'shimmer',
+        // Common name mappings
+        'alice': 'alloy',
+        'bob': 'onyx',
+        'charlie': 'echo',
+        'diana': 'nova',
+        'eve': 'shimmer',
+        'frank': 'fable',
+      }
+      
+      const selectedVoice = chapter.speakerName 
+        ? (voiceMap[chapter.speakerName.toLowerCase()] || 'alloy')
+        : 'alloy'
+      
+      console.log(`🎤 Using voice: ${selectedVoice} (from speakerName: ${chapter.speakerName || 'default'})`)
+
       // Generate audio using OpenAI TTS with automatic chunking
+      // Pass userId so it can use user's OpenRouter API key if configured
       const audioResult = await openaiTTSService.generateAudio({
         text: chapter.content,
-        voice: 'alloy', // You can make this configurable per chapter
+        voice: selectedVoice,
         model: 'tts-1', // Cheapest model
+        userId: session.user.id, // Pass userId to check for OpenRouter config
       })
 
       // Upload to S3

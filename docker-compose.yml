@@ -19,6 +19,26 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://rogan_user:rogan_password@postgres:5432/rogan_writer?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me-in-production}
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Mount .env file if needed (create .env.docker for Docker-specific vars)
+      - ./.env.docker:/app/.env.local:ro
+    command: sh -c "npx prisma migrate deploy && node server.js"
+
   # TTS Service Note:
   # For audiobook generation, run Dia TTS natively on your machine.
   # See AUDIOBOOK-ENV.md for setup instructions.

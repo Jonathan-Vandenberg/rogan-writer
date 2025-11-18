@@ -250,7 +250,7 @@ export class DraftAgent extends AIAgent {
     `;
 
     try {
-      const response = await this.callOpenAI(prompt);
+      const response = await this.callOpenAI(prompt, book?.id);
       const outlines = this.cleanAndParseJSON(response);
       
       // Ensure outlines is an array
@@ -390,7 +390,7 @@ export class DraftAgent extends AIAgent {
     `;
 
     try {
-      const chapterContent = await this.callOpenAIForText(prompt);
+      const chapterContent = await this.callOpenAIForText(prompt, book.id);
       
       // Count words (rough estimate)
       const wordCount = chapterContent.split(/\s+/).length;
@@ -478,7 +478,7 @@ export class DraftAgent extends AIAgent {
     `;
 
     try {
-      const summary = await this.callOpenAIForText(prompt);
+      const summary = await this.callOpenAIForText(prompt, book?.id);
       return summary.trim();
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
@@ -630,15 +630,27 @@ export class DraftAgent extends AIAgent {
   }
 
   // Method for generating text content (not JSON)
-  private async callOpenAIForText(prompt: string): Promise<string> {
+  private async callOpenAIForText(prompt: string, bookId?: string): Promise<string> {
     try {
+      // Get userId from bookId for OpenRouter config and temperature
+      let userId: string | undefined;
+      if (bookId) {
+        const book = await prisma.book.findUnique({
+          where: { id: bookId },
+          select: { userId: true },
+        });
+        userId = book?.userId;
+      }
+
       const { llmService } = await import('../llm.service');
       const response = await llmService.chatCompletion(
         [{ role: 'user', content: prompt }],
         {
           system_prompt: 'You are an expert creative writer. Write engaging, well-structured prose. Return only the requested text content without any JSON formatting, code blocks, or additional commentary.',
-          temperature: 0.8, // Higher creativity for prose
-          max_tokens: 2000,
+          // Don't set temperature - use user's suggestions temperature (higher creativity for prose)
+          max_tokens: 8000, // Increased from 2000 - creative writing needs longer responses (GPT-4 Turbo: 128K context)
+          userId, // Pass userId for OpenRouter config and temperature
+          taskType: 'suggestions', // Use suggestions temperature for creative writing
         }
       );
 

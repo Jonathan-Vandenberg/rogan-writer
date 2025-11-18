@@ -174,7 +174,7 @@ export class PlotAgent extends AIAgent {
     `;
 
     try {
-      const response = await this.callOpenAI(prompt);
+      const response = await this.callOpenAI(prompt, bookId);
       const suggestions = this.cleanAndParseJSON(response);
 
       // Convert to our format with IDs
@@ -384,7 +384,7 @@ ${customDirectionSection}
     `;
 
     try {
-      const response = await this.callOpenAI(prompt);
+      const response = await this.callOpenAI(prompt, bookId);
       const plotStructures = this.cleanAndParseJSON(response);
 
       const suggestions = plotStructures.slice(0, 3).map((structure: any, index: number) => ({

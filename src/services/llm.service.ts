@@ -1,9 +1,12 @@
 /**
  * Unified LLM Service
- * Switches between OpenAI (production) and Ollama (development) based on NODE_ENV
+ * Switches between OpenAI (production), Ollama (development), and OpenRouter (user-configured) based on NODE_ENV and user settings
  */
 
 import OpenAI from 'openai';
+import { prisma } from '@/lib/db';
+import { decrypt, maskApiKey } from './encryption.service';
+import { OpenRouterService } from './openrouter.service';
 
 interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -26,6 +29,9 @@ interface LLMOptions {
   max_tokens?: number;
   system_prompt?: string;
   thinking_mode?: boolean; // Enable thinking mode for better reasoning
+  userId?: string; // Optional user ID to check for OpenRouter config
+  useOpenRouter?: boolean; // Force use OpenRouter if available
+  taskType?: 'default' | 'research' | 'suggestions'; // Task type to determine which temperature to use
 }
 
 export class LLMService {
@@ -59,22 +65,172 @@ export class LLMService {
     options: LLMOptions = {}
   ): Promise<LLMResponse> {
     const {
-      model = this.defaultModel,
-      temperature = 0.7,
-      max_tokens = 2000,
+      model,
+      temperature: providedTemperature,
+      max_tokens = 8000, // Increased from 2000 to leverage larger context windows (GPT-4 Turbo: 128K, Claude 3.5: 200K)
       system_prompt,
-      thinking_mode = false
+      thinking_mode = false,
+      userId,
+      useOpenRouter = true,
+      taskType = 'default'
     } = options;
+
+    // Get user's temperature preference if userId is provided and temperature not explicitly set
+    let temperature = providedTemperature;
+    if (!providedTemperature && userId) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            defaultModelTemperature: true,
+            researchModelTemperature: true,
+            suggestionsModelTemperature: true,
+          },
+        });
+
+        if (user) {
+          switch (taskType) {
+            case 'research':
+              temperature = user.researchModelTemperature ?? 0.3;
+              break;
+            case 'suggestions':
+              temperature = user.suggestionsModelTemperature ?? 0.8;
+              break;
+            case 'default':
+            default:
+              temperature = user.defaultModelTemperature ?? 0.7;
+              break;
+          }
+          console.log(`🌡️  [LLM Service] Using user's ${taskType} temperature: ${temperature}`);
+        }
+      } catch (error) {
+        console.error('Error fetching user temperature settings:', error);
+        // Fall back to defaults
+        temperature = taskType === 'research' ? 0.3 : taskType === 'suggestions' ? 0.8 : 0.7;
+      }
+    } else if (!providedTemperature) {
+      // Default temperatures if no userId
+      temperature = taskType === 'research' ? 0.3 : taskType === 'suggestions' ? 0.8 : 0.7;
+    }
 
     // Add system prompt if provided and not already present
     if (system_prompt && !messages.find(m => m.role === 'system')) {
       messages = [{ role: 'system', content: system_prompt }, ...messages];
     }
 
+    // Track if OpenRouter was attempted
+    let openRouterAttempted = false;
+    let openRouterHadKey = false;
+
+    // Check for OpenRouter configuration if user ID is provided
+    if (useOpenRouter && userId) {
+      openRouterAttempted = true;
+      try {
+        console.log(`🔍 [LLM Service] Checking for user's OpenRouter API key in database (userId: ${userId})`);
+        console.log(`🔍 [LLM Service] NOT checking environment variables - using user's database-stored key only`);
+        
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            openRouterApiKey: true,
+            openRouterDefaultModel: true,
+            openRouterResearchModel: true,
+            openRouterSuggestionsModel: true,
+            defaultModelTemperature: true,
+            researchModelTemperature: true,
+            suggestionsModelTemperature: true,
+          },
+        });
+
+        if (user?.openRouterApiKey) {
+          openRouterHadKey = true;
+          try {
+            const apiKey = decrypt(user.openRouterApiKey);
+            const maskedKey = maskApiKey(apiKey);
+            
+            console.log(`✅ [LLM Service] Found user's OpenRouter API key in database: ${maskedKey}`);
+            console.log(`✅ [LLM Service] Using USER'S API KEY from database (NOT env variables)`);
+            console.log(`🔒 [LLM Service] Environment OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY ? 'EXISTS but NOT USED' : 'NOT SET (as expected)'}`);
+            
+            const openRouterService = new OpenRouterService(apiKey);
+            
+            // Use user's preferred model based on task type or the specified model
+            let selectedModel = model;
+            if (!selectedModel) {
+              switch (taskType) {
+                case 'research':
+                  selectedModel = user.openRouterResearchModel || user.openRouterDefaultModel || 'openai/gpt-4';
+                  break;
+                case 'suggestions':
+                  selectedModel = user.openRouterSuggestionsModel || user.openRouterDefaultModel || 'openai/gpt-4';
+                  break;
+                case 'default':
+                default:
+                  selectedModel = user.openRouterDefaultModel || 'openai/gpt-4';
+                  break;
+              }
+            }
+            
+            console.log(`🌐 Using OpenRouter with model: ${selectedModel} (taskType: ${taskType})`);
+            
+            const response = await openRouterService.chatCompletion(messages, {
+              model: selectedModel,
+              temperature,
+              max_tokens,
+            });
+
+            return {
+              content: response.content,
+              model: response.model,
+              usage: response.usage,
+            };
+          } catch (openRouterError) {
+            console.error('OpenRouter API error:', openRouterError);
+            // Fall through to default behavior - will handle below
+          }
+        } else {
+          console.log(`ℹ️  [LLM Service] No OpenRouter API key found in user's database record (userId: ${userId})`);
+          console.log(`ℹ️  [LLM Service] Falling back to default LLM (OpenAI/Ollama from env)`);
+        }
+      } catch (error) {
+        console.error('Error checking OpenRouter config, falling back to default:', error);
+        // Fall through to default behavior
+      }
+    }
+
+    // Default behavior: use OpenAI or Ollama
+    const selectedModel = model || this.defaultModel;
+
+    // If user has OpenRouter configured but it failed, don't silently fall back to Ollama
+    // Instead, try OpenAI if available, or give a clear error
+    if (openRouterAttempted && openRouterHadKey) {
+      // User has OpenRouter configured but it failed - try OpenAI as fallback
+      if (process.env.OPENAI_API_KEY) {
+        console.log('⚠️  OpenRouter failed, falling back to OpenAI');
+        return await this.callOpenAI(messages, { 
+          model: selectedModel, 
+          temperature: temperature ?? 0.7, 
+          max_tokens: max_tokens ?? 8000 
+        });
+      } else {
+        throw new Error('OpenRouter is configured but failed. Please check your API key in settings or configure OpenAI API key in environment variables.');
+      }
+    }
+
+    // Normal fallback: OpenAI or Ollama
     if (this.isLocal) {
-      return await this.callOllama(messages, { model, temperature, max_tokens, thinking_mode });
+      return await this.callOllama(messages, { 
+        model: selectedModel, 
+        temperature: temperature ?? 0.7, 
+        max_tokens: max_tokens ?? 8000, 
+        thinking_mode 
+      });
     } else {
-      return await this.callOpenAI(messages, { model, temperature, max_tokens });
+      return await this.callOpenAI(messages, { 
+        model: selectedModel, 
+        temperature: temperature ?? 0.7, 
+        max_tokens: max_tokens ?? 8000 
+      });
     }
   }
 

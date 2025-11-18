@@ -138,9 +138,10 @@ export class ResearchItemService {
     }
   }
 
-  static async updateEmbedding(id: string, embedding: number[]): Promise<ResearchItem> {
+  static async updateEmbedding(id: string, _embedding: number[]): Promise<ResearchItem> {
     // TODO: Implement proper vector embedding update when AI features are ready
     // For now, just return the item without updating embedding
+    // Prefix with _ to indicate intentionally unused parameter
     return await prisma.researchItem.findUniqueOrThrow({
       where: { id }
     })

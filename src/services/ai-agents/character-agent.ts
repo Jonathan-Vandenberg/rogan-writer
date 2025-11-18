@@ -119,7 +119,7 @@ export class CharacterAgent extends AIAgent {
     `;
 
     try {
-      const response = await this.callOpenAI(prompt);
+      const response = await this.callOpenAI(prompt, bookId);
       const suggestions = this.cleanAndParseJSON(response);
 
       // Convert to our format with IDs

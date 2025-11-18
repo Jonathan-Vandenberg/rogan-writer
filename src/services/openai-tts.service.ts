@@ -1,14 +1,19 @@
 /**
  * OpenAI TTS Integration Service
  * Handles text-to-speech generation with automatic chunking for long content
+ * Supports both direct OpenAI API and OpenRouter (if user has configured it)
  */
 
 import OpenAI from 'openai';
+import { prisma } from '@/lib/db';
+import { decrypt, maskApiKey } from './encryption.service';
+import { OpenRouterService } from './openrouter.service';
 
 interface GenerateAudioParams {
   text: string;
   voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
   model?: 'tts-1' | 'tts-1-hd';
+  userId?: string; // Optional user ID to check for OpenRouter config
 }
 
 interface TTSResponse {
@@ -126,13 +131,97 @@ export class OpenAITTSService {
 
   /**
    * Generate audio from text using OpenAI TTS with automatic chunking
+   * Checks for user's OpenRouter API key first, falls back to env OpenAI key
    */
   async generateAudio(params: GenerateAudioParams): Promise<TTSResponse> {
-    if (!this.isEnabled || !this.client) {
-      throw new Error('OpenAI TTS service is not configured. Set OPENAI_API_KEY in your environment variables.');
+    const { text, voice = 'alloy', model = 'tts-1', userId } = params;
+
+    // Check for OpenRouter configuration if user ID is provided
+    if (userId) {
+      try {
+        console.log(`🔍 [TTS Service] Checking for user's OpenRouter API key in database (userId: ${userId})`);
+        console.log(`🔍 [TTS Service] NOT checking environment variables - using user's database-stored key only`);
+        
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            openRouterApiKey: true,
+          },
+        });
+
+        if (user?.openRouterApiKey) {
+          try {
+            const apiKey = decrypt(user.openRouterApiKey);
+            const maskedKey = maskApiKey(apiKey);
+            
+            console.log(`✅ [TTS Service] Found user's OpenRouter API key in database: ${maskedKey}`);
+            console.log(`✅ [TTS Service] Attempting to use USER'S API KEY from database via OpenRouter`);
+            console.log(`🔒 [TTS Service] Environment OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'EXISTS but checking OpenRouter first' : 'NOT SET'}`);
+            
+            const openRouterService = new OpenRouterService(apiKey);
+            
+            // Try to generate TTS via OpenRouter
+            // Note: OpenRouter may not support TTS, so we'll fall back to direct OpenAI if it fails
+            // For long text, we still need to chunk it (OpenRouter may have similar limits)
+            try {
+              // Split text into chunks for OpenRouter (same as direct OpenAI)
+              const chunks = this.splitIntoChunks(text);
+              console.log(`📋 [TTS Service] Split into ${chunks.length} chunks for OpenRouter TTS`);
+              
+              // Generate audio for each chunk via OpenRouter
+              const audioBuffers: Buffer[] = [];
+              for (let i = 0; i < chunks.length; i++) {
+                console.log(`🎙️  [TTS Service] Generating chunk ${i + 1}/${chunks.length} via OpenRouter...`);
+                const chunkResult = await openRouterService.generateTTS(chunks[i], voice, model);
+                audioBuffers.push(chunkResult.audioBuffer);
+              }
+              
+              // Concatenate chunks
+              let finalBuffer: Buffer;
+              if (audioBuffers.length === 1) {
+                finalBuffer = audioBuffers[0];
+              } else {
+                finalBuffer = await this.concatenateAudioFiles(audioBuffers);
+              }
+              
+              console.log(`✅ [TTS Service] Successfully generated TTS via OpenRouter`);
+              
+              // Estimate duration
+              const estimatedWords = text.length / 5;
+              const estimatedDuration = (estimatedWords / 150) * 60;
+              
+              return {
+                audioBuffer: finalBuffer,
+                duration: estimatedDuration,
+                format: 'mp3',
+              };
+            } catch (openRouterError) {
+              console.log(`ℹ️  [TTS Service] OpenRouter TTS not available (${openRouterError instanceof Error ? openRouterError.message : 'unknown error'}), falling back to direct OpenAI API`);
+              // Fall through to direct OpenAI
+            }
+          } catch (error) {
+            console.error('Error using OpenRouter for TTS, falling back to OpenAI:', error);
+            // Fall through to direct OpenAI
+          }
+        } else {
+          console.log(`ℹ️  [TTS Service] No OpenRouter API key found in user's database record (userId: ${userId})`);
+          console.log(`ℹ️  [TTS Service] Falling back to OpenAI from env`);
+        }
+      } catch (error) {
+        console.error('Error checking OpenRouter config for TTS, falling back to OpenAI:', error);
+        // Fall through to direct OpenAI
+      }
     }
 
-    const { text, voice = 'alloy', model = 'tts-1' } = params;
+    // Fall back to direct OpenAI API
+    if (!this.isEnabled || !this.client) {
+      throw new Error('OpenAI TTS service is not configured. Set OPENAI_API_KEY in your environment variables or configure OpenRouter API key in settings.');
+    }
+
+    if (userId) {
+      console.log(`✅ [TTS Service] Using OpenAI API key from environment variables (NOT user's OpenRouter key)`);
+      console.log(`🔒 [TTS Service] Note: TTS may not be available through OpenRouter, using direct OpenAI access`);
+    }
 
     try {
       console.log(`🎙️  Starting OpenAI TTS generation - Length: ${text.length} chars, Voice: ${voice}, Model: ${model}`);

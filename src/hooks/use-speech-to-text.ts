@@ -8,6 +8,8 @@ interface SpeechToTextSettings {
   provider: SpeechToTextProvider
   language: string
   autoInsert: boolean
+  prompt?: string // Optional prompt to guide transcription (helps with proper nouns, technical terms)
+  temperature?: number // Optional temperature (0.0-1.0), default 0.2
 }
 
 interface UseSpeechToTextProps {
@@ -119,6 +121,16 @@ export function useSpeechToText({
           const formData = new FormData()
           formData.append('audio', audioBlob, 'recording.webm')
           formData.append('language', settings.language)
+          
+          // Add optional prompt if provided
+          if (settings.prompt) {
+            formData.append('prompt', settings.prompt)
+          }
+          
+          // Add optional temperature if provided
+          if (settings.temperature !== undefined) {
+            formData.append('temperature', settings.temperature.toString())
+          }
 
           const response = await fetch('/api/speech-to-text', {
             method: 'POST',
