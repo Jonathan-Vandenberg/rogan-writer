@@ -101,7 +101,7 @@ jobs:
         source: "./deploy/*"
         target: "/var/www/rogan-writer"
         strip_components: 1
-        rm: false
+        rm: true
         debug: true
 
     - name: Verify deployment
