@@ -125,7 +125,19 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
       }
       
       const data = await response.json()
-      setAnalysisResult(data.analysisResult)
+      
+      // Ensure all fields are arrays (handle cases where agents return objects)
+      const result = data.analysisResult || {}
+      const normalizedResult: ComprehensiveAnalysisResult = {
+        timeline: Array.isArray(result.timeline) ? result.timeline : (result.timeline?.suggestions || []),
+        characters: Array.isArray(result.characters) ? result.characters : (result.characters?.suggestions || []),
+        locations: Array.isArray(result.locations) ? result.locations : (result.locations?.suggestions || []),
+        plotPoints: Array.isArray(result.plotPoints) ? result.plotPoints : (result.plotPoints?.suggestions || []),
+        sceneCards: Array.isArray(result.sceneCards) ? result.sceneCards : (result.sceneCards?.suggestions || []),
+        brainstorming: Array.isArray(result.brainstorming) ? result.brainstorming : (result.brainstorming?.suggestions || [])
+      }
+      
+      setAnalysisResult(normalizedResult)
       
       // Start with no suggestions selected - user must manually choose
       setSelectedSuggestions(new Set<string>())

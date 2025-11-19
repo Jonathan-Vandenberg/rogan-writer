@@ -134,6 +134,10 @@ jobs:
           pm2 stop rogan-writer || true
           pm2 delete rogan-writer || true
           
+          # Kill any process on port 3000
+          fuser -k 3000/tcp || true
+          sleep 2
+          
           # Start the application with PM2
           NODE_ENV=production pm2 start npm --name "rogan-writer" -- start
           

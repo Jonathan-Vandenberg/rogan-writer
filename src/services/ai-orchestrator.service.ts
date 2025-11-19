@@ -66,12 +66,12 @@ export class AIOrchestrator {
 
       // Run all agents in parallel for maximum efficiency
       const [
-        timelineEvents,
-        characters,
-        locations,
-        plotPoints,
-        sceneCards,
-        brainstormingNotes
+        timelineEventsResult,
+        charactersResult,
+        locationsResult,
+        plotPointsResult,
+        sceneCardsResult,
+        brainstormingNotesResult
       ] = await Promise.all([
         this.timelineAgent.analyze(chapters, bookId),
         this.characterAgent.analyze(chapters, bookId),
@@ -80,6 +80,15 @@ export class AIOrchestrator {
         this.sceneAgent.analyze(chapters, bookId),
         this.brainstormingAgent.analyze(chapters, bookId)
       ]);
+
+      // Extract suggestions from agents that return { suggestions, context } objects
+      // Some agents return arrays directly, others return objects with suggestions property
+      const timelineEvents = Array.isArray(timelineEventsResult) ? timelineEventsResult : (timelineEventsResult as any)?.suggestions || [];
+      const characters = Array.isArray(charactersResult) ? charactersResult : (charactersResult as any)?.suggestions || [];
+      const locations = Array.isArray(locationsResult) ? locationsResult : (locationsResult as any)?.suggestions || [];
+      const plotPoints = Array.isArray(plotPointsResult) ? plotPointsResult : (plotPointsResult as any)?.suggestions || [];
+      const sceneCards = Array.isArray(sceneCardsResult) ? sceneCardsResult : (sceneCardsResult as any)?.suggestions || [];
+      const brainstormingNotes = Array.isArray(brainstormingNotesResult) ? brainstormingNotesResult : (brainstormingNotesResult as any)?.suggestions || [];
 
       console.log('🤖 AI Orchestrator: All agents completed successfully');
       console.log(`📊 Results: ${timelineEvents.length} timeline, ${characters.length} characters, ${locations.length} locations, ${plotPoints.length} plots, ${sceneCards.length} scenes, ${brainstormingNotes.length} ideas`);
