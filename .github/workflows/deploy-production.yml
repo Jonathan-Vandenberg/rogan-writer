@@ -101,7 +101,8 @@ jobs:
         source: "./deploy/*"
         target: "/var/www/rogan-writer"
         strip_components: 1
-        overwrite: true
+        rm: false
+        debug: true
 
     - name: Verify deployment
       uses: appleboy/ssh-action@master
@@ -110,16 +111,29 @@ jobs:
         username: ${{ secrets.DIGITALOCEAN_USERNAME }}
         key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
         script: |
+          echo "=== DEBUG: Connection Info ==="
+          echo "Connected as user: $(whoami)"
+          echo "Home directory: $HOME"
+          echo "Current directory: $(pwd)"
+          echo "IP: $(hostname -I)"
+          echo ""
           echo "=== Verifying deployment ==="
           cd /var/www/rogan-writer
+          echo "Current directory after cd: $(pwd)"
           echo "Files in /var/www/rogan-writer:"
           ls -la
+          echo ""
+          echo "File timestamps:"
+          stat /var/www/rogan-writer/ 2>/dev/null || echo "Directory stat failed"
           echo ""
           echo "Checking critical files:"
           test -f package.json && echo "✅ package.json exists" || echo "❌ package.json MISSING"
           test -d .next && echo "✅ .next directory exists" || echo "❌ .next MISSING"
           test -d node_modules && echo "✅ node_modules exists" || echo "❌ node_modules MISSING"
           test -f .env && echo "✅ .env exists" || echo "❌ .env MISSING"
+          echo ""
+          echo "=== Searching entire filesystem for package.json ==="
+          find /var/www -name "package.json" -type f 2>/dev/null | head -10
 
     - name: Run database migrations and start application
       uses: appleboy/ssh-action@master
