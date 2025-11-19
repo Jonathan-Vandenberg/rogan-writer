@@ -3,6 +3,11 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { AIOrchestrator } from '@/services/ai-orchestrator.service';
 
+// Increase timeout for book generation (can take 5+ minutes for full books)
+// Vercel Pro: max 60s, Enterprise: max 300s (5 minutes)
+export const maxDuration = 300; // 5 minutes (requires Vercel Enterprise)
+export const dynamic = 'force-dynamic';
+
 interface GenerateDraftRequest {
   replaceExisting?: boolean; // Whether to replace existing chapters
   preview?: boolean; // Just generate preview, don't save to DB

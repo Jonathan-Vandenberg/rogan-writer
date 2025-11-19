@@ -3,6 +3,11 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { AIOrchestrator } from '@/services/ai-orchestrator.service';
 
+// Increase timeout for comprehensive analysis (can take several minutes)
+// Vercel Pro: max 60s, Enterprise: max 300s (5 minutes)
+export const maxDuration = 300; // 5 minutes (requires Vercel Enterprise)
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ bookId: string }> }

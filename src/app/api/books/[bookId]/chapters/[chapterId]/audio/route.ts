@@ -4,6 +4,11 @@ import { prisma } from '@/lib/db'
 import { openaiTTSService } from '@/services/openai-tts.service'
 import { s3Service } from '@/services/s3.service'
 
+// Increase timeout for audio generation (can take 1-2 minutes for long chapters)
+// Vercel Pro: max 60s, Enterprise: max 300s (5 minutes)
+export const maxDuration = 300; // 5 minutes (requires Vercel Enterprise)
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ bookId: string; chapterId: string }> }

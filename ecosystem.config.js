@@ -17,7 +17,7 @@ module.exports = {
       out_file: '/var/www/rogan-writer/logs/out.log',
       log_file: '/var/www/rogan-writer/logs/combined.log',
       time: true,
-      // Ensure we're using Node.js 18
+      // Ensure we're using Node.js 20
       interpreter: 'node',
       node_args: '--max-old-space-size=1024',
       // Restart policy

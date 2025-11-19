@@ -1,52 +1,109 @@
-# Vercel Deployment
-# 
-# Note: Vercel automatically deploys from Git pushes via their platform.
-# This workflow is optional and can be used for:
-# - Running tests before deployment
-# - Running linting/type checking
-# - Notifications
-#
-# To deploy to Vercel:
-# 1. Connect your GitHub repo to Vercel (vercel.com → Add New Project)
-# 2. Configure environment variables in Vercel dashboard
-# 3. Push to main branch → Vercel auto-deploys
-#
-# See DEPLOYMENT.md for detailed instructions
-
-name: Pre-Deployment Checks
+name: Deploy to Production
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
-  lint-and-typecheck:
+  deploy:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
+    - name: Check System Info
+      run: |
+        echo "Node version: $(node -v)"
+        echo "NPM version: $(npm -v)"
+        echo "Architecture: $(uname -m)"
+        echo "OS: $(uname -s)"
+        
+    - name: Setup Node.js 18
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '18.18.0'
+        architecture: 'x64'
         cache: 'npm'
 
+    - name: Set up environment files
+      run: |
+        # Create production .env.local file directly from secrets (Next.js convention)
+        echo "NODE_ENV=production" > .env.local
+        echo "PORT=3000" >> .env.local
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env.local
+        echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env.local
+        echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env.local
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env.local
+        echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env.local
+        echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env.local
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env.local
+        echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> .env.local
+        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env.local
+        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.local
+        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.local
+        echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.local
+        
+        # Add trusted hosts for NextAuth (both www and non-www)
+        echo "AUTH_TRUST_HOST=true" >> .env.local
+        
+        # Copy .env.local to .env for compatibility
+        cp .env.local .env
     - name: Install dependencies
       run: npm install --legacy-peer-deps
+        
+    - name: Generate Prisma client
+      run: |
+        echo "Cleaning Prisma cache..."
+        rm -rf node_modules/.prisma
+        rm -rf node_modules/@prisma/client
+        echo "Generating Prisma client from schema..."
+        npx prisma generate
+      
+    - name: Build application
+      run: npm run build
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+        NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
-    - name: Generate Prisma Client
-      run: npx prisma generate
+    - name: Prepare for deployment
+      run: |
+        chmod -R 755 .next
+        chmod 644 package.json
+    - name: Deploy to DigitalOcean
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.DIGITALOCEAN_HOST }}
+        username: ${{ secrets.DIGITALOCEAN_USERNAME }}
+        key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
+        source: ".next,package.json,package-lock.json,prisma,public,.env,.env.local,node_modules"
+        target: "/var/www/rogan-writer"
+        strip_components: 0
+        rm: true
 
-    - name: Run linting
-      run: npm run lint
-
-    - name: Type check
-      run: npx tsc --noEmit
-
-    # Optional: Run tests if you add them later
-    # - name: Run tests
-    #   run: npm test
+    - name: Start application
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DIGITALOCEAN_HOST }}
+        username: ${{ secrets.DIGITALOCEAN_USERNAME }}
+        key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
+        script: |
+          cd /var/www/rogan-writer
+          npm install --omit=dev --legacy-peer-deps
+          echo "Loading production environment from config..."
+          cp config/.env.production .env
+          echo "Running database migrations on server..."
+          npx prisma migrate deploy
+          npm run db:generate
+          pm2 stop rogan-writer || true
+          pm2 delete rogan-writer || true
+          NODE_ENV=production pm2 start npm --name "rogan-writer" -- start 

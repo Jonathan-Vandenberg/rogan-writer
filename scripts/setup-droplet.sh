@@ -5,8 +5,8 @@ echo "Setting up DigitalOcean droplet for rogan-writer deployment..."
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install Node.js 18 via NodeSource
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+# Install Node.js 20 via NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Verify Node.js version

@@ -53,5 +53,6 @@ ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
 # Use next start instead of standalone server.js
-CMD ["npm", "start"]
+# For DigitalOcean, we need to run migrations before starting
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
 

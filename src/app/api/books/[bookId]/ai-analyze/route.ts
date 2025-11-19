@@ -15,6 +15,10 @@ export const runtime = 'nodejs';
 // Prevent static generation - this route should never be analyzed during build
 export const revalidate = 0;
 
+// Increase timeout for AI analysis (can take several minutes)
+// Vercel Pro: max 60s, Enterprise: max 300s (5 minutes)
+export const maxDuration = 300; // 5 minutes (requires Vercel Enterprise)
+
 interface AnalyzeRequest {
   type: 'brainstorming' | 'characters' | 'plot' | 'locations' | 'scenes' | 'full';
   options?: {
