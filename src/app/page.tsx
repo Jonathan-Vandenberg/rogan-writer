@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CreateBookDialog } from "@/components/ui/create-book-dialog"
@@ -10,9 +10,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { useSelectedBook } from "@/contexts/selected-book-context"
-import { BookOpen, PenTool, Users, BarChart3, Target, Lightbulb, Clock, FileText, Image, Loader2, Upload, Sparkles, Trash2, Replace } from "lucide-react"
+import { BookOpen, Clock, FileText, Image as ImageIcon, Loader2, Upload, Sparkles, Trash2, Replace } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 interface DashboardData {
   books: {
@@ -312,10 +313,15 @@ export default function DashboardPage() {
                     {book.coverImageUrl ? (
                       <Link href={`/books/${book.id}`} className="block">
                         <div className="w-full aspect-[2/3] overflow-hidden bg-muted">
-                          <img
+                          <Image
+                            width={400}
+                            height={600}
                             src={book.coverImageUrl}
                             alt={`${book.title} cover`}
                             className="w-full h-full object-cover"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                            loading="lazy"
+                            priority={books.indexOf(book) < 8 ? true : false}
                           />
                         </div>
                       </Link>
@@ -337,7 +343,7 @@ export default function DashboardPage() {
                                 setOpenPopovers(prev => ({ ...prev, [book.id]: true }))
                               }}
                             >
-                              <Image className="h-4 w-4 mr-2" />
+                              <ImageIcon className="h-4 w-4 mr-2" />
                               <span>Add Cover Art</span>
                             </Button>
                           </PopoverTrigger>
