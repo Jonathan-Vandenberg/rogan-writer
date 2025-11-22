@@ -13,6 +13,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { useSelectedBook } from "@/contexts/selected-book-context"
 import AIBookChat from "@/components/ai-book-chat"
+import { GlobalMicrophoneButton } from "@/components/ui/global-microphone-button"
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -36,6 +37,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     return (
       <div className="min-h-screen bg-background">
         {children}
+        <GlobalMicrophoneButton />
       </div>
     )
   }
@@ -67,6 +69,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         <div className="flex flex-1 flex-col">
           {children}
         </div>
+        <GlobalMicrophoneButton />
       </SidebarInset>
     </SidebarProvider>
   )

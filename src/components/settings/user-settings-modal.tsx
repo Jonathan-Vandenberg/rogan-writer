@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Slider } from "@/components/ui/slider"
 import { ModelCombobox } from "@/components/ui/model-combobox"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, CheckCircle, AlertCircle, Key, Sparkles, HelpCircle, Lightbulb } from "lucide-react"
+import { Loader2, CheckCircle, AlertCircle, Key, Sparkles, HelpCircle, Lightbulb, Mic } from "lucide-react"
 
 interface UserSettingsModalProps {
   open: boolean
@@ -38,6 +38,7 @@ interface OpenRouterSettings {
   openRouterSuggestionsModel: string | null
   openRouterChatModel: string | null
   openRouterTTSModel: string | null
+  openRouterSTTModel: string | null
   openRouterImageModel: string | null
   isConfigured: boolean
   // Temperature settings (0-1, where 0.7 is default)
@@ -173,6 +174,7 @@ export function UserSettingsModal({ open, onOpenChange }: UserSettingsModalProps
     openRouterSuggestionsModel: null,
     openRouterChatModel: null,
     openRouterTTSModel: null,
+    openRouterSTTModel: null,
     openRouterImageModel: null,
     isConfigured: false,
     editorModelTemperature: 0.7,
@@ -191,8 +193,10 @@ export function UserSettingsModal({ open, onOpenChange }: UserSettingsModalProps
   const [chatModels, setChatModels] = React.useState<OpenRouterModel[]>([])
   const [embeddingModels, setEmbeddingModels] = React.useState<OpenRouterModel[]>([])
   const [imageModels, setImageModels] = React.useState<OpenRouterModel[]>([])
+  const [sttModels, setSttModels] = React.useState<OpenRouterModel[]>([])
   const [isLoadingModels, setIsLoadingModels] = React.useState(false)
   const [imageModelsError, setImageModelsError] = React.useState<string | null>(null)
+  const [sttModelsError, setSttModelsError] = React.useState<string | null>(null)
   // Model details cache: agentType -> modelId -> ModelDetails
   const [modelDetailsCache, setModelDetailsCache] = React.useState<Record<string, Record<string, ModelDetails>>>({})
   const [loadingModelDetails, setLoadingModelDetails] = React.useState<Record<string, boolean>>({})
@@ -224,6 +228,7 @@ export function UserSettingsModal({ open, onOpenChange }: UserSettingsModalProps
           ttsVoice: data.ttsVoice ?? 'alloy',
           ttsModel: data.ttsModel ?? 'tts-1',
           openRouterTTSModel: data.openRouterTTSModel || data.ttsModel || null,
+          openRouterSTTModel: data.openRouterSTTModel || null,
           openRouterImageModel: data.openRouterImageModel || null,
           modelPreferences: data.modelPreferences || {},
         })
@@ -392,6 +397,26 @@ export function UserSettingsModal({ open, onOpenChange }: UserSettingsModalProps
         setImageModelsError(errorMessage)
         setImageModels([]) // Clear models on error
       }
+
+      // Fetch all models for STT (user will select manually)
+      params.set('type', 'all')
+      setSttModelsError(null) // Clear previous error
+      const sttResponse = await fetch(`/api/user/settings/models?${params.toString()}`)
+      if (sttResponse.ok) {
+        const sttData = await sttResponse.json()
+        console.log('All models loaded for STT selection:', sttData.models?.length || 0)
+        const models = sttData.models || []
+        setSttModels(models)
+        if (models.length === 0) {
+          setSttModelsError('No models found. Please check your API key and try again.')
+        }
+      } else {
+        const errorData = await sttResponse.json().catch(() => ({}))
+        const errorMessage = errorData.error || errorData.message || 'Failed to load models'
+        console.error('Failed to load models:', errorData)
+        setSttModelsError(errorMessage)
+        setSttModels([]) // Clear models on error
+      }
     } catch (error) {
       console.error('Error loading models:', error)
     } finally {
@@ -459,6 +484,7 @@ export function UserSettingsModal({ open, onOpenChange }: UserSettingsModalProps
         openRouterSuggestionsModel: settings.openRouterSuggestionsModel,
         openRouterChatModel: settings.openRouterChatModel,
         openRouterTTSModel: settings.openRouterTTSModel,
+        openRouterSTTModel: settings.openRouterSTTModel,
         openRouterImageModel: settings.openRouterImageModel,
         editorModelTemperature: settings.editorModelTemperature,
         researchModelTemperature: settings.researchModelTemperature,
@@ -1003,6 +1029,59 @@ export function UserSettingsModal({ open, onOpenChange }: UserSettingsModalProps
                         )
                       })()}
                     </div>
+                  </div>
+                </div>
+
+                {/* Speech-to-Text / Dictation Section */}
+                <div className="space-y-4 border-t pt-4">
+                  <h3 className="text-sm font-semibold mb-4">Speech-to-Text & Dictation</h3>
+
+                  <div className="space-y-2 border-l-3 border-l-cyan-500 pl-4">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="stt-model" className="font-semibold">STT Model</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Speech-to-text model for dictation. Select any model that supports audio transcription (e.g., openai/whisper-1, openai/whisper-large-v3). Requires OpenRouter API key.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <ModelCombobox
+                      id="stt-model"
+                      models={sttModels}
+                      value={settings.openRouterSTTModel || "openai/whisper-1"}
+                      onValueChange={(value) => {
+                        setSettings({ ...settings, openRouterSTTModel: value })
+                      }}
+                      placeholder={sttModels.length === 0 ? (isLoadingModels ? "Loading models..." : "Click to load models") : "Select STT model (all models shown)"}
+                      disabled={isLoadingModels}
+                      emptyMessage={isLoadingModels ? "Loading models..." : sttModels.length === 0 ? "Click 'Refresh Models' button above to load available models" : "No models available"}
+                      showFreeFilter={true}
+                    />
+                    {sttModelsError && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          {sttModelsError}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {!sttModelsError && sttModels.length === 0 && !isLoadingModels && (
+                      <Alert className="mt-2">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          No models found. Click "Refresh Models" above to load all available models from OpenRouter.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <Alert className="mt-2">
+                      <Mic className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        Right-click on any page in the editor and select "Dictate" to start voice input. The model will transcribe your speech and insert it at the cursor position.
+                      </AlertDescription>
+                    </Alert>
                   </div>
                 </div>
 

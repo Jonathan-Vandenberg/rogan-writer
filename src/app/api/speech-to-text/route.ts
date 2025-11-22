@@ -1,65 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import OpenAI from 'openai'
+import { decrypt } from '@/services/encryption.service'
+import { OpenRouterService } from '@/services/openrouter.service'
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user session for logging
+    // Get user session
     const session = await auth()
     const userId = session?.user?.id
 
-    // Check if OpenAI API key is configured
-    // Note: Whisper requires direct OpenAI API access (not through OpenRouter)
-    if (!process.env.OPENAI_API_KEY) {
-      console.log(`❌ [Speech-to-Text] No OpenAI API key in environment variables`)
-      
-      // Check if user has OpenRouter configured (for informational purposes)
-      if (userId) {
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { openRouterApiKey: true },
-        })
-        if (user?.openRouterApiKey) {
-          console.log(`ℹ️  [Speech-to-Text] User has OpenRouter configured, but Whisper requires direct OpenAI API access`)
-        }
-      }
-      
+    if (!userId) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured. Whisper requires direct OpenAI API access (not through OpenRouter).' },
-        { status: 500 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       )
     }
 
-    // Log which API key we're using
-    if (userId) {
-      console.log(`🔍 [Speech-to-Text] Checking user's API configuration (userId: ${userId})`)
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { openRouterApiKey: true },
-      })
-      if (user?.openRouterApiKey) {
-        console.log(`ℹ️  [Speech-to-Text] User has OpenRouter configured, but Whisper requires direct OpenAI API`)
-      }
-      console.log(`✅ [Speech-to-Text] Using OpenAI API key from environment variables (NOT user's OpenRouter key)`)
-      console.log(`🔒 [Speech-to-Text] Note: Whisper API requires direct OpenAI access, not available through OpenRouter`)
-    } else {
-      console.log(`✅ [Speech-to-Text] Using OpenAI API key from environment variables`)
-    }
-
-    // Initialize OpenAI client with env key
-    // Handle both undefined and empty string cases, use dummy key during build
-    const envKey = process.env.OPENAI_API_KEY;
-    const apiKey = (envKey && envKey.trim()) || 'sk-build-dummy-key-not-used-during-build-phase';
-    const openai = new OpenAI({
-      apiKey: apiKey,
+    // Get user's OpenRouter configuration
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        openRouterApiKey: true, 
+        openRouterSTTModel: true 
+      },
     })
+
+    if (!user?.openRouterApiKey) {
+      return NextResponse.json(
+        { error: 'OpenRouter API key not configured. Please configure your OpenRouter API key in settings.' },
+        { status: 400 }
+      )
+    }
 
     const formData = await request.formData()
     const audioFile = formData.get('audio') as File
     const language = formData.get('language') as string || 'en'
-    const prompt = formData.get('prompt') as string || undefined // Optional prompt to guide transcription
-    const temperature = formData.get('temperature') as string | undefined // Optional temperature (0.0-1.0)
+    const prompt = formData.get('prompt') as string | undefined
+    const temperature = formData.get('temperature') as string | undefined
 
     if (!audioFile) {
       return NextResponse.json(
@@ -68,35 +46,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Convert the File to a format OpenAI can accept
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer())
+    const temp = temperature ? parseFloat(temperature) : 0.2
+
+    console.log(`🌐 [Speech-to-Text] Using OpenRouter API (userId: ${userId})`)
     
-    // Create a File-like object that OpenAI accepts
-    const audioForOpenAI = new File([audioBuffer], 'audio.webm', {
-      type: audioFile.type || 'audio/webm'
-    })
+    const apiKey = decrypt(user.openRouterApiKey)
+    const openRouterService = new OpenRouterService(apiKey)
+    
+    // Use user's selected STT model or default to openai/whisper-1
+    const sttModel = user.openRouterSTTModel || 'openai/whisper-1'
+    console.log(`📝 [Speech-to-Text] Using STT model: ${sttModel}`)
+    
+    const result = await openRouterService.transcribeAudio(
+      audioBuffer,
+      sttModel,
+      language,
+      prompt,
+      temp
+    )
 
-    // Build transcription options
-    const transcriptionOptions: any = {
-      file: audioForOpenAI,
-      model: 'whisper-1',
-      language: language.substring(0, 2), // OpenAI expects 2-letter language codes
-      response_format: 'json',
-      temperature: temperature ? parseFloat(temperature) : 0.2, // Lower temperature for more consistent results
-    }
-
-    // Add prompt if provided (helps with proper nouns, technical terms, etc.)
-    if (prompt && prompt.trim()) {
-      transcriptionOptions.prompt = prompt.trim()
-      console.log(`📝 [Speech-to-Text] Using custom prompt: ${prompt.substring(0, 50)}...`)
-    }
-
-    // Call OpenAI Whisper API
-    const transcription = await openai.audio.transcriptions.create(transcriptionOptions)
-
-    const transcript = transcription.text.trim()
-
-    if (!transcript) {
+    if (!result.transcript || !result.transcript.trim()) {
       return NextResponse.json(
         { error: 'No speech detected in audio' },
         { status: 400 }
@@ -104,32 +74,33 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      transcript,
-      language,
-      confidence: 1.0, // OpenAI doesn't provide confidence scores
-      provider: 'openai-whisper'
+      transcript: result.transcript.trim(),
+      language: result.language || language,
+      confidence: 1.0,
+      provider: 'openrouter',
+      model: result.model
     })
 
   } catch (error) {
     console.error('Speech-to-text API error:', error)
     
-    // Handle specific OpenAI errors
+    // Handle specific errors
     if (error instanceof Error) {
-      if (error.message.includes('Invalid API key')) {
+      if (error.message.includes('Invalid API key') || error.message.includes('Unauthorized')) {
         return NextResponse.json(
-          { error: 'Invalid OpenAI API key' },
+          { error: 'Invalid OpenRouter API key. Please check your API key in settings.' },
           { status: 401 }
         )
       }
       
-      if (error.message.includes('quota')) {
+      if (error.message.includes('quota') || error.message.includes('rate limit')) {
         return NextResponse.json(
-          { error: 'OpenAI API quota exceeded' },
+          { error: 'OpenRouter API quota exceeded. Please try again later.' },
           { status: 429 }
         )
       }
       
-      if (error.message.includes('audio')) {
+      if (error.message.includes('audio') || error.message.includes('format')) {
         return NextResponse.json(
           { error: 'Invalid audio format or file too large' },
           { status: 400 }
@@ -138,7 +109,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to transcribe audio' },
+      { 
+        error: 'Failed to transcribe audio via OpenRouter',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }

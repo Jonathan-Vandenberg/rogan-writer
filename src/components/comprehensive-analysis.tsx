@@ -348,7 +348,7 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
               const errorData = await response.json().catch(() => ({}))
               // Skip duplicate plot points (they already exist) - should not happen now, but keep as fallback
               if (response.status === 409) {
-                console.log(`Plot point ${suggestion.type} already exists for subplot ${suggestion.subplot || 'main'}, skipping`)
+                console.log(`Plot point ${suggestion.type} already exists for    subplot ${suggestion.subplot || 'main'}, skipping`)
                 successCount++ // Count as success since it exists
               } else {
                 errorCount++

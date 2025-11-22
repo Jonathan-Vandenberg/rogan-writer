@@ -38,6 +38,7 @@ model User {
   openRouterSuggestionsModel String? // Selected model for suggestions agent
   openRouterChatModel       String? // Selected model for AI chat/book Q&A
   openRouterTTSModel        String? // Selected model for text-to-speech/audiobooks
+  openRouterSTTModel        String? // Selected model for speech-to-text/dictation
   openRouterImageModel      String? // Selected model for image generation/cover art
   
   // Temperature settings (0-1, where 0.7 is default)

@@ -26,6 +26,7 @@ export async function GET() {
         openRouterSuggestionsModel: true,
         openRouterChatModel: true,
         openRouterTTSModel: true,
+        openRouterSTTModel: true,
         openRouterImageModel: true,
         editorModelTemperature: true,
         researchModelTemperature: true,
@@ -49,6 +50,7 @@ export async function GET() {
       openRouterSuggestionsModel: user.openRouterSuggestionsModel,
       openRouterChatModel: user.openRouterChatModel,
       openRouterTTSModel: user.openRouterTTSModel,
+      openRouterSTTModel: user.openRouterSTTModel,
       openRouterImageModel: user.openRouterImageModel,
       isConfigured: !!user.openRouterApiKey,
       editorModelTemperature: user.editorModelTemperature ?? 0.7,
@@ -86,6 +88,7 @@ export async function PUT(request: NextRequest) {
       openRouterSuggestionsModel,
       openRouterChatModel,
       openRouterTTSModel,
+      openRouterSTTModel,
       openRouterImageModel,
       editorModelTemperature,
       researchModelTemperature,
@@ -129,6 +132,9 @@ export async function PUT(request: NextRequest) {
     if (openRouterTTSModel !== undefined) {
       updateData.openRouterTTSModel = openRouterTTSModel || null
     }
+    if (openRouterSTTModel !== undefined) {
+      updateData.openRouterSTTModel = openRouterSTTModel || null
+    }
     if (openRouterImageModel !== undefined) {
       updateData.openRouterImageModel = openRouterImageModel || null
     }
@@ -171,6 +177,7 @@ export async function PUT(request: NextRequest) {
         openRouterSuggestionsModel: true,
         openRouterChatModel: true,
         openRouterTTSModel: true,
+        openRouterSTTModel: true,
         openRouterImageModel: true,
         editorModelTemperature: true,
         researchModelTemperature: true,
@@ -190,6 +197,7 @@ export async function PUT(request: NextRequest) {
       openRouterSuggestionsModel: user.openRouterSuggestionsModel,
       openRouterChatModel: user.openRouterChatModel,
       openRouterTTSModel: user.openRouterTTSModel,
+      openRouterSTTModel: user.openRouterSTTModel,
       openRouterImageModel: user.openRouterImageModel,
       isConfigured: !!user.openRouterApiKey,
       editorModelTemperature: user.editorModelTemperature ?? 0.7,

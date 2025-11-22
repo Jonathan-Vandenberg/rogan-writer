@@ -303,6 +303,30 @@ export class OpenRouterService {
   }
 
   /**
+   * Get STT (speech-to-text) models
+   * Filters for models that support speech-to-text/audio transcription (Whisper models)
+   */
+  async getSTTModels(): Promise<OpenRouterModel[]> {
+    const allModels = await this.getAvailableModels();
+    return allModels.filter(model => {
+      const id = model.id?.toLowerCase() || '';
+      const name = model.name?.toLowerCase() || '';
+      
+      // Include Whisper models (OpenRouter typically uses openai/whisper-* format)
+      if (
+        id.includes('whisper') ||
+        name.includes('whisper') ||
+        id.includes('stt') ||
+        name.includes('speech-to-text')
+      ) {
+        return true;
+      }
+      
+      return false;
+    });
+  }
+
+  /**
    * Get image generation models
    * Returns all available models from OpenRouter (no filtering)
    */
@@ -447,6 +471,200 @@ export class OpenRouterService {
     } catch (error) {
       console.error('OpenRouter TTS generation error:', error);
       throw new Error(`Failed to generate TTS via OpenRouter: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Transcribe audio using OpenRouter
+   * Supports both Whisper models (via audio/transcriptions) and multimodal models (via chat completions)
+   */
+  async transcribeAudio(
+    audioBuffer: Buffer,
+    model: string = 'openai/whisper-1',
+    language?: string,
+    prompt?: string,
+    temperature?: number
+  ): Promise<{
+    transcript: string;
+    language?: string;
+    model: string;
+  }> {
+    try {
+      const isWhisperModel = model.toLowerCase().includes('whisper');
+      
+      if (isWhisperModel) {
+        // Use audio/transcriptions endpoint for Whisper models
+        const uint8Array = new Uint8Array(audioBuffer);
+        const audioBlob = new Blob([uint8Array], { type: 'audio/webm' });
+        const audioFile = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+        
+        const formData = new FormData();
+        formData.append('file', audioFile);
+        formData.append('model', model);
+        
+        if (language) {
+          formData.append('language', language.substring(0, 2));
+        }
+        if (prompt) {
+          formData.append('prompt', prompt);
+        }
+        formData.append('temperature', (temperature ?? 0.2).toString());
+        formData.append('response_format', 'json');
+        
+        const response = await fetch(`${this.baseURL}/audio/transcriptions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://roganwriter.com',
+            'X-Title': 'Rogan Writer',
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `OpenRouter STT API error: ${response.status} ${response.statusText}. ${errorData.error?.message || 'STT not supported via OpenRouter'}`
+          );
+        }
+
+        const data = await response.json();
+        
+        return {
+          transcript: data.text || data.transcript || '',
+          language: data.language || language,
+          model: model,
+        };
+      } else {
+        // Use chat completions with multimodal audio input for other models (e.g., Gemini)
+        // Convert audio to base64 (without data URL prefix for OpenRouter)
+        const base64Audio = audioBuffer.toString('base64');
+        // Try wav format first (more widely supported), fallback to webm
+        const audioFormat = 'wav'; // wav is more widely supported than webm
+        
+        // Use a clear, direct prompt
+        const transcriptionPrompt = prompt || (language ? `Transcribe this ${language} audio file to text.` : 'Transcribe this audio file to text.');
+        
+        // OpenRouter uses OpenAI-compatible multimodal format
+        // Format: content array with input_audio type
+        // The order might matter - try audio first, then text
+        const messages: any[] = [{
+          role: 'user',
+          content: [
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: base64Audio, // Base64 string without data URL prefix
+                format: audioFormat
+              }
+            },
+            {
+              type: 'text',
+              text: transcriptionPrompt
+            }
+          ]
+        }];
+        
+        console.log(`🎤 [STT] Attempting transcription with model: ${model} using chat completions`);
+        console.log(`📊 [STT] Audio size: ${audioBuffer.length} bytes, format: ${audioFormat}, base64 length: ${base64Audio.length}`);
+        
+        // Try first without modalities
+        let requestBody: any = {
+          model: model,
+          messages: messages,
+          temperature: temperature ?? 0.2,
+        };
+        
+        let response = await fetch(`${this.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://roganwriter.com',
+            'X-Title': 'Rogan Writer',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        // If that fails, try with modalities parameter (like image generation)
+        if (!response.ok) {
+          console.log(`⚠️  [STT] First attempt failed, trying with modalities parameter`);
+          requestBody.modalities = ['audio', 'text'];
+          
+          response = await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://roganwriter.com',
+              'X-Title': 'Rogan Writer',
+            },
+            body: JSON.stringify(requestBody),
+          });
+        }
+        
+        // If still failing, try with webm format
+        if (!response.ok) {
+          console.log(`⚠️  [STT] Trying with webm format instead of wav`);
+          messages[0].content[0].input_audio.format = 'webm';
+          requestBody.messages = messages;
+          delete requestBody.modalities; // Remove modalities for this attempt
+          
+          response = await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://roganwriter.com',
+              'X-Title': 'Rogan Writer',
+            },
+            body: JSON.stringify(requestBody),
+          });
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData: any = {};
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (e) {
+            errorData = { error: { message: errorText } };
+          }
+          
+          console.error('OpenRouter chat completions error:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData,
+            model: model,
+            requestBody: JSON.stringify(requestBody).substring(0, 500) // Log first 500 chars
+          });
+          
+          throw new Error(
+            `OpenRouter STT API error: ${response.status} ${response.statusText}. ${errorData.error?.message || `Audio transcription may not be supported for model ${model}. Try a Whisper model like openai/whisper-1.`}`
+          );
+        }
+
+        const data: OpenRouterChatResponse = await response.json();
+        
+        if (!data.choices || data.choices.length === 0) {
+          throw new Error('No response from model');
+        }
+
+        const transcript = data.choices[0].message.content || '';
+        
+        if (!transcript || !transcript.trim()) {
+          throw new Error('Empty transcription response from model');
+        }
+        
+        return {
+          transcript: transcript.trim(),
+          language: language,
+          model: data.model || model,
+        };
+      }
+    } catch (error) {
+      console.error('OpenRouter audio transcription error:', error);
+      throw new Error(`Failed to transcribe audio via OpenRouter: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
