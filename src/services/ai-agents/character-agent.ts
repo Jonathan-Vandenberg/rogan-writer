@@ -25,6 +25,8 @@ export class CharacterAgent extends AIAgent {
     const existingSuggestions = additionalContext?.existingSuggestions as Array<{ name: string; description: string }> | undefined;
     const cachedContext = additionalContext?.cachedContext as string | null | undefined;
     const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
+    const customIdea = additionalContext?.customIdea as string | undefined;
+    const customRole = additionalContext?.customRole as string | undefined;
     console.log('👤 Character Agent: Starting analysis...');
     
     // Get book details and ALL existing characters
@@ -76,6 +78,9 @@ export class CharacterAgent extends AIAgent {
 
       EXISTING CHARACTERS (DO NOT DUPLICATE):
       ${existingCharactersList}
+
+      ${customIdea ? `CUSTOM CHARACTER IDEA:\n${customIdea}\n\nUse this idea as the basis for character suggestions.` : ''}
+      ${customRole ? `PREFERRED ROLE: ${customRole}\n\nFocus on suggesting characters for this specific role.` : ''}
 
       CRITICAL REQUIREMENTS:
       1. **AVOID ALL DUPLICATES**: Carefully review existing characters above. Do NOT suggest anything similar in name, role, or description

@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Sparkles, Loader2, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 export interface PlotSuggestion {
@@ -75,6 +76,8 @@ export function AIPlotSuggestions({
   const setIsOpen = controlledOnOpenChange !== undefined ? controlledOnOpenChange : setInternalIsOpen
   const [suggestions, setSuggestions] = React.useState<PlotSuggestion[]>([])
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
+  const [isCreating, setIsCreating] = React.useState(false)
+  const [creatingSuggestions, setCreatingSuggestions] = React.useState<Set<string>>(new Set())
   const [error, setError] = React.useState<string | null>(null)
   const [selectedSuggestions, setSelectedSuggestions] = React.useState<Set<string>>(new Set())
   const [acceptedSuggestions, setAcceptedSuggestions] = React.useState<Set<string>>(new Set())
@@ -240,16 +243,31 @@ export function AIPlotSuggestions({
   }
 
   const handleConfirmSelected = async () => {
-    for (const suggestionId of selectedSuggestions) {
-      const suggestion = suggestions.find(s => s.id === suggestionId)
-      if (suggestion) {
-        await handleAcceptPlot(suggestion)
+    if (selectedSuggestions.size === 0) return
+    
+    setIsCreating(true)
+    setError(null)
+    
+    try {
+      for (const suggestionId of selectedSuggestions) {
+        const suggestion = suggestions.find(s => s.id === suggestionId)
+        if (suggestion) {
+          await handleAcceptPlot(suggestion)
+        }
       }
+      setSelectedSuggestions(new Set())
+    } catch (error) {
+      console.error('Error confirming selected suggestions:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create plot structures')
+    } finally {
+      setIsCreating(false)
     }
-    setSelectedSuggestions(new Set())
   }
 
   const handleAcceptPlot = async (suggestion: PlotSuggestion) => {
+    // Mark this suggestion as being created
+    setCreatingSuggestions(prev => new Set([...prev, suggestion.id]))
+    
     try {
       // Create a clean subplot name based on the suggestion title (no dashes)
       const subplotName = suggestion.title
@@ -328,6 +346,9 @@ export function AIPlotSuggestions({
 
       // Create new plot points
       console.log('✨ Creating', allPlotPoints.length, 'new plot points...');
+      let createdCount = 0
+      let skippedCount = 0
+      
       for (const point of allPlotPoints) {
         const response = await fetch(`/api/books/${bookId}/plot-points`, {
           method: 'POST',
@@ -341,19 +362,56 @@ export function AIPlotSuggestions({
           })
         })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error('Failed to create plot point:', errorData)
-          throw new Error(`Failed to create plot point: ${errorData.error || 'Unknown error'}`)
+        if (response.ok) {
+          // Both 200 (existing) and 201 (created) are success
+          if (response.status === 201) {
+            createdCount++
+          } else if (response.status === 200) {
+            skippedCount++
+            console.log(`Plot point ${point.type} already exists for subplot ${point.subplot || 'main'}, using existing`)
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          // Handle duplicate plot points gracefully
+          if (response.status === 409) {
+            skippedCount++
+            console.log(`Plot point ${point.type} already exists for subplot ${point.subplot || 'main'}, skipping`)
+          } else {
+            console.error('Failed to create plot point:', errorData)
+            throw new Error(`Failed to create plot point: ${errorData.error || 'Unknown error'}`)
+          }
         }
       }
 
-      console.log('✅ Successfully created all plot points as new subplot:', subplotName);
+      console.log('✅ Successfully processed plot points:', { created: createdCount, skipped: skippedCount });
+      
+      // Show success toast
+      if (createdCount > 0 || skippedCount === allPlotPoints.length) {
+        toast.success(
+          `Plot structure "${suggestion.title}" added!`,
+          {
+            description: createdCount > 0 
+              ? `Created ${createdCount} plot point${createdCount !== 1 ? 's' : ''}${skippedCount > 0 ? `, ${skippedCount} already existed` : ''}`
+              : `All ${skippedCount} plot point${skippedCount !== 1 ? 's' : ''} already existed`
+          }
+        )
+      }
+      
       setAcceptedSuggestions(prev => new Set([...prev, suggestion.id]))
       onPlotAccepted?.(suggestion)
     } catch (error) {
       console.error('Error accepting plot suggestion:', error)
-      alert(`Failed to accept plot suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error('Failed to accept plot suggestion', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error // Re-throw to let handleConfirmSelected handle it
+    } finally {
+      // Remove from creating set
+      setCreatingSuggestions(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(suggestion.id)
+        return newSet
+      })
     }
   }
 
@@ -385,7 +443,13 @@ export function AIPlotSuggestions({
         </div>
       )}
       
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        // Prevent closing while creating plot structures
+        if (!open && isCreating) {
+          return
+        }
+        setIsOpen(open)
+      }}>
         <DialogContent 
         className="!max-w-none max-h-[90vh] flex flex-col"
         style={{ width: '70vw', maxWidth: 'none' }}
@@ -458,7 +522,7 @@ export function AIPlotSuggestions({
                       id={`plot-${suggestion.id}`}
                       checked={selectedSuggestions.has(suggestion.id)}
                       onCheckedChange={() => toggleSelection(suggestion.id)}
-                      disabled={acceptedSuggestions.has(suggestion.id)}
+                      disabled={acceptedSuggestions.has(suggestion.id) || creatingSuggestions.has(suggestion.id) || isCreating}
                       className="mt-1"
                     />
                     <div className="flex-1 space-y-2">
@@ -473,7 +537,12 @@ export function AIPlotSuggestions({
                         <Badge className={cn("text-xs", getConfidenceColor(suggestion.confidence))}>
                           {Math.round(suggestion.confidence * 100)}% confidence
                         </Badge>
-                        {acceptedSuggestions.has(suggestion.id) && (
+                        {creatingSuggestions.has(suggestion.id) && (
+                          <Badge className="text-xs bg-blue-100 text-blue-700">
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Saving...
+                          </Badge>
+                        )}
+                        {acceptedSuggestions.has(suggestion.id) && !creatingSuggestions.has(suggestion.id) && (
                           <Badge className="text-xs bg-green-100 text-green-700">
                             <Check className="h-3 w-3 mr-1" /> Accepted
                           </Badge>
@@ -535,37 +604,60 @@ export function AIPlotSuggestions({
         </div>
 
         {suggestions.length > 0 && remainingSuggestions.length > 0 && (
-          <div className="flex items-center justify-between pt-4 border-t gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => handleAnalyze(true)} 
-              disabled={isAnalyzing}
-              className="gap-2"
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Analyze More
-                </>
-              )}
-            </Button>
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-muted-foreground">
-                {selectedSuggestions.size} selected • {remainingSuggestions.length} total
-              </div>
-              <Button
-                onClick={handleConfirmSelected}
-                disabled={selectedSuggestions.size === 0}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="space-y-2">
+              <Label htmlFor="custom-direction-bottom" className="text-sm">Custom Direction (Optional)</Label>
+              <Textarea
+                id="custom-direction-bottom"
+                placeholder="e.g., Focus on a mystery subplot involving a stolen artifact..."
+                value={customDirection}
+                onChange={(e) => setCustomDirection(e.target.value)}
+                rows={2}
+                className="resize-none text-sm"
+              />
+            </div>
+            
+            <div className="flex items-center justify-between gap-4">
+              <Button 
+                variant="outline" 
+                onClick={() => handleAnalyze(true)} 
+                disabled={isAnalyzing}
                 className="gap-2"
               >
-                <Check className="h-4 w-4" />
-                Confirm Selected ({selectedSuggestions.size})
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Analyze More
+                  </>
+                )}
               </Button>
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-muted-foreground">
+                  {selectedSuggestions.size} selected • {remainingSuggestions.length} total
+                </div>
+              <Button
+                onClick={handleConfirmSelected}
+                disabled={selectedSuggestions.size === 0 || isCreating}
+                className="gap-2"
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Confirm Selected ({selectedSuggestions.size})
+                  </>
+                )}
+              </Button>
+              </div>
             </div>
           </div>
         )}

@@ -21,12 +21,33 @@ export class PlotService {
     title: string
     description?: string
     orderIndex: number
-    subplot?: string
+    subplot?: string | null
     bookId: string
     chapterId?: string
   }): Promise<PlotPoint> {
+    // Normalize subplot: empty string, undefined, or null all become null
+    const normalizedSubplot = !data.subplot || (typeof data.subplot === 'string' && data.subplot.trim() === '') ? null : data.subplot
+    
+    // Check if plot point already exists (unique constraint: bookId, type, subplot)
+    const existing = await prisma.plotPoint.findFirst({
+      where: {
+        bookId: data.bookId,
+        type: data.type,
+        subplot: normalizedSubplot
+      }
+    })
+
+    if (existing) {
+      // Return existing plot point instead of throwing error
+      return existing
+    }
+
+    // Create with normalized subplot
     return await prisma.plotPoint.create({
-      data
+      data: {
+        ...data,
+        subplot: normalizedSubplot
+      }
     })
   }
 

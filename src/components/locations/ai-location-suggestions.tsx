@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Sparkles, Check, X, Loader2, MapPin, AlertCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
@@ -17,6 +19,7 @@ interface LocationSuggestion {
   culture?: string;
   reasoning: string;
   confidence: number;
+  imageUrl?: string;
 }
 
 interface AILocationSuggestionsProps {
@@ -59,7 +62,41 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
   const [selectedSuggestions, setSelectedSuggestions] = React.useState<Set<string>>(new Set())
   const [acceptedSuggestions, setAcceptedSuggestions] = React.useState<Set<string>>(new Set())
   const [isCreating, setIsCreating] = React.useState(false)
+  const [customIdea, setCustomIdea] = React.useState("")
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
+  
+  // Function to fetch Wikipedia image for a location
+  const fetchWikipediaImage = async (locationName: string): Promise<string | null> => {
+    try {
+      // Wikipedia API: Search for the location
+      const searchUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(locationName)}`;
+      const response = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'RoganWriter/1.0 (https://roganwriter.com)'
+        }
+      });
+      
+      if (!response.ok) {
+        return null;
+      }
+      
+      const data = await response.json();
+      
+      // Check if there's an image
+      if (data.thumbnail && data.thumbnail.source) {
+        // Use the original image URL (higher quality)
+        const imageUrl = data.originalimage?.source || data.thumbnail.source;
+        console.log(`📸 Found Wikipedia image for ${locationName}: ${imageUrl}`);
+        return imageUrl;
+      }
+      
+      return null;
+    } catch (error) {
+      // Silently fail - don't throw errors for missing images
+      console.log(`⚠️ Could not fetch Wikipedia image for ${locationName}:`, error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    }
+  };
   
   // Get cached context from Redis, checking content hash
   const getCachedContext = async () => {
@@ -122,14 +159,6 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
     try {
       // Try to get cached context
       const cachedContext = await getCachedContext();
-      
-      console.log('🤖 Calling AI location analyze API...');
-      console.log('📊 Request config:', {
-        bookId,
-        isAnalyzeMore,
-        existingSuggestionsCount: suggestions.length,
-        skipVectorSearch: !!cachedContext
-      });
 
       const response = await fetch(`/api/books/${bookId}/ai-analyze`, {
         method: 'POST',
@@ -145,7 +174,8 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
                  ...suggestions.filter(s => !acceptedSuggestions.has(s.id))]
               : [],
             cachedContext,
-            skipVectorSearch: !!cachedContext
+            skipVectorSearch: !!cachedContext,
+            customIdea: customIdea.trim() || undefined
           }
         }),
       });
@@ -164,12 +194,20 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
         usedCache: data.metadata?.usedCache
       });
       
+      // Fetch Wikipedia images for suggestions
+      const suggestionsWithImages = await Promise.all(
+        (data.suggestions || []).map(async (suggestion: LocationSuggestion) => {
+          const imageUrl = await fetchWikipediaImage(suggestion.name);
+          return { ...suggestion, imageUrl: imageUrl || undefined };
+        })
+      );
+      
       if (isAnalyzeMore) {
         // For "Analyze More", append new suggestions
-        setSuggestions(prev => [...prev, ...(data.suggestions || [])]);
+        setSuggestions(prev => [...prev, ...suggestionsWithImages]);
       } else {
         // For initial analysis, replace suggestions
-        setSuggestions(data.suggestions || []);
+        setSuggestions(suggestionsWithImages);
       }
 
       // 💰 CRITICAL: Save context to Redis if we have fresh context
@@ -217,6 +255,13 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
       let createdCount = 0;
       for (const suggestion of selectedLocations) {
         console.log(`Creating location: ${suggestion.name}`);
+        
+        // Try to fetch Wikipedia image if not already present
+        let imageUrl = suggestion.imageUrl;
+        if (!imageUrl) {
+          imageUrl = await fetchWikipediaImage(suggestion.name) || undefined;
+        }
+        
         const response = await fetch(`/api/books/${bookId}/locations`, {
           method: 'POST',
           headers: {
@@ -226,7 +271,8 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
             name: suggestion.name,
             description: suggestion.description,
             geography: suggestion.geography || '',
-            culture: suggestion.culture || ''
+            culture: suggestion.culture || '',
+            imageUrl: imageUrl || undefined
           }),
         });
 
@@ -343,11 +389,10 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
       <DialogTrigger asChild>
         <Button 
           variant="outline" 
-          size="sm"
+          size="lg"
           className={cn("gap-2", className)}
         >
           <Sparkles className="h-4 w-4" />
-          AI Location Suggestions
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -378,20 +423,37 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
 
           {suggestions.length === 0 && !isAnalyzing && (
             <Card className="border-dashed">
-              <CardContent className="pt-6 text-center py-12">
-                <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-lg font-medium mb-2">Ready to discover new locations</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Click "Generate Suggestions" to let AI analyze your story and suggest locations
-                </p>
-                <Button 
-                  onClick={() => handleAnalyze(false)} 
-                  disabled={isAnalyzing}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {isAnalyzing ? 'Analyzing...' : 'Generate Suggestions'}
-                </Button>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium mb-2">Ready to discover new locations</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Optionally provide a location idea, or let AI analyze your story automatically
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-location-idea">Location Idea (Optional)</Label>
+                    <Textarea
+                      id="custom-location-idea"
+                      placeholder="e.g., A hidden underground city beneath the capital, or A remote research station in the Arctic..."
+                      value={customIdea}
+                      onChange={(e) => setCustomIdea(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  
+                  <Button 
+                    onClick={() => handleAnalyze(false)} 
+                    disabled={isAnalyzing}
+                    className="gap-2 w-full"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isAnalyzing ? 'Analyzing...' : 'Generate Suggestions'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -424,7 +486,18 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
                           )}
                           <div className="flex-1">
                             <CardTitle className="text-xl mb-2">{suggestion.name}</CardTitle>
-                            <div className="flex flex-wrap gap-2 mb-2">
+                            <div className="flex flex-wrap gap-2 mb-2 items-center">
+                              {suggestion.imageUrl && (
+                                <img 
+                                  src={suggestion.imageUrl} 
+                                  alt={suggestion.name}
+                                  className="w-16 h-16 object-cover rounded-md border"
+                                  onError={(e) => {
+                                    // Hide image if it fails to load
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
                               <Badge variant="outline" className="ml-auto">
                                 {Math.round(suggestion.confidence * 100)}% confidence
                               </Badge>
@@ -476,22 +549,37 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
                 <Loader2 className="h-12 w-12 mx-auto text-muted-foreground mb-4 animate-spin" />
                 <p className="text-lg font-medium mb-2">Analyzing your story...</p>
                 <p className="text-sm text-muted-foreground">
-                  AI is reviewing your book's content to suggest relevant characters
+                  AI is reviewing your planning and book content
                 </p>
               </CardContent>
             </Card>
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            {suggestions.length > 0 && (
-              <span>
-                {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} · {selectedSuggestions.size} selected · {acceptedSuggestions.size} accepted
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
+        <div className="space-y-4 pt-4 border-t">
+          {(suggestions.length > 0 || isAnalyzing) && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-location-idea-bottom" className="text-sm">Location Idea (Optional)</Label>
+              <Textarea
+                id="custom-location-idea-bottom"
+                placeholder="e.g., A hidden underground city beneath the capital..."
+                value={customIdea}
+                onChange={(e) => setCustomIdea(e.target.value)}
+                rows={2}
+                className="resize-none text-sm"
+              />
+            </div>
+          )}
+          
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              {suggestions.length > 0 && (
+                <span>
+                  {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} · {selectedSuggestions.size} selected · {acceptedSuggestions.size} accepted
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => handleAnalyze(true)}
@@ -527,6 +615,7 @@ export function AILocationSuggestions({ bookId, onSuggestionAccepted, className 
             >
               Done
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

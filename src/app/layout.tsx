@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider"
 import { SessionProviderWrapper } from "@/components/providers/session-provider"
 import { SelectedBookProvider } from "@/contexts/selected-book-context"
 import { MainLayout } from "@/components/layout/main-layout"
+import { Toaster } from "sonner"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
               <MainLayout>
                 {children}
               </MainLayout>
+              <Toaster position="top-right" />
             </ThemeProvider>
           </SelectedBookProvider>
         </SessionProviderWrapper>

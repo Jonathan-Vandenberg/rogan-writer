@@ -7,7 +7,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sparkles, Check, X, Loader2, Target, AlertCircle, Clock, User, Globe, Zap, BookOpen, Calendar, Film } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+
+// Plot point types for orderIndex calculation
+const PLOT_POINT_TYPES: { type: string; label: string }[] = [
+  { type: 'HOOK', label: 'Hook' },
+  { type: 'PLOT_TURN_1', label: 'Plot Turn 1' },
+  { type: 'PINCH_1', label: 'Pinch 1' },
+  { type: 'MIDPOINT', label: 'Midpoint' },
+  { type: 'PINCH_2', label: 'Pinch 2' },
+  { type: 'PLOT_TURN_2', label: 'Plot Turn 2' },
+  { type: 'RESOLUTION', label: 'Resolution' },
+]
 
 // Define interfaces based on the AI analysis service
 interface TimelineEventSuggestion {
@@ -171,9 +183,15 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 eventDate: suggestion.eventDate,
               })
             })
-            if (response.ok) successCount++
-            else errorCount++
-          } catch {
+            if (response.ok) {
+              successCount++
+            } else {
+              const errorData = await response.json().catch(() => ({}))
+              console.error(`Failed to create timeline event:`, errorData)
+              errorCount++
+            }
+          } catch (err) {
+            console.error(`Error creating timeline event:`, err)
             errorCount++
           }
         }
@@ -194,9 +212,15 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 backstory: suggestion.backstory,
               })
             })
-            if (response.ok) successCount++
-            else errorCount++
-          } catch {
+            if (response.ok) {
+              successCount++
+            } else {
+              const errorData = await response.json().catch(() => ({}))
+              console.error(`Failed to create character:`, errorData)
+              errorCount++
+            }
+          } catch (err) {
+            console.error(`Error creating character:`, err)
             errorCount++
           }
         }
@@ -216,9 +240,15 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 culture: suggestion.culture,
               })
             })
-            if (response.ok) successCount++
-            else errorCount++
-          } catch {
+            if (response.ok) {
+              successCount++
+            } else {
+              const errorData = await response.json().catch(() => ({}))
+              console.error(`Failed to create location:`, errorData)
+              errorCount++
+            }
+          } catch (err) {
+            console.error(`Error creating location:`, err)
             errorCount++
           }
         }
@@ -239,9 +269,15 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 outcome: suggestion.outcome,
               })
             })
-            if (response.ok) successCount++
-            else errorCount++
-          } catch {
+            if (response.ok) {
+              successCount++
+            } else {
+              const errorData = await response.json().catch(() => ({}))
+              console.error(`Failed to create scene card:`, errorData)
+              errorCount++
+            }
+          } catch (err) {
+            console.error(`Error creating scene card:`, err)
             errorCount++
           }
         }
@@ -260,9 +296,15 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 tags: suggestion.tags,
               })
             })
-            if (response.ok) successCount++
-            else errorCount++
-          } catch {
+            if (response.ok) {
+              successCount++
+            } else {
+              const errorData = await response.json().catch(() => ({}))
+              console.error(`Failed to create brainstorming note:`, errorData)
+              errorCount++
+            }
+          } catch (err) {
+            console.error(`Error creating brainstorming note:`, err)
             errorCount++
           }
         }
@@ -272,6 +314,15 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
       for (const suggestion of analysisResult.plotPoints) {
         if (selectedSuggestions.has(suggestion.id)) {
           try {
+            // Normalize subplot: empty string, undefined, or 'main' should become null for main plot
+            // But preserve actual subplot names
+            let subplotValue: string | null = null
+            if (suggestion.subplot && suggestion.subplot.trim() !== '' && suggestion.subplot.toLowerCase() !== 'main') {
+              subplotValue = suggestion.subplot.trim()
+            }
+            
+            console.log(`Creating plot point: ${suggestion.type}, subplot: "${subplotValue || 'main (null)'}", title: ${suggestion.title}`)
+            
             const response = await fetch(`/api/books/${bookId}/plot-points`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -279,28 +330,78 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 type: suggestion.type,
                 title: suggestion.title,
                 description: suggestion.description,
-                subplot: suggestion.subplot,
+                subplot: subplotValue,
+                orderIndex: PLOT_POINT_TYPES.findIndex(p => p.type === suggestion.type) + 1
               })
             })
-            if (response.ok) successCount++
-            else errorCount++
-          } catch {
+            // Both 200 (existing) and 201 (created) are success
+            if (response.ok) {
+              successCount++
+              const createdPoint = await response.json().catch(() => null)
+              // Log if it was an existing plot point (200) vs newly created (201)
+              if (response.status === 200) {
+                console.log(`Plot point ${suggestion.type} already exists for subplot ${subplotValue || 'main'}, using existing`)
+              } else {
+                console.log(`✅ Created plot point ${suggestion.type} for subplot "${createdPoint?.subplot || 'main'}"`)
+              }
+            } else {
+              const errorData = await response.json().catch(() => ({}))
+              // Skip duplicate plot points (they already exist) - should not happen now, but keep as fallback
+              if (response.status === 409) {
+                console.log(`Plot point ${suggestion.type} already exists for subplot ${suggestion.subplot || 'main'}, skipping`)
+                successCount++ // Count as success since it exists
+              } else {
+                errorCount++
+                console.error(`Failed to create plot point:`, errorData)
+              }
+            }
+          } catch (err) {
+            console.error(`Error creating plot point:`, err)
             errorCount++
           }
         }
       }
 
-      // Show results
+      // Show results with toast
       if (successCount > 0) {
-        alert(`Successfully created ${successCount} items!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`)
+        toast.success(
+          `Successfully created ${successCount} item${successCount !== 1 ? 's' : ''}!`,
+          {
+            description: errorCount > 0 ? `${errorCount} item${errorCount !== 1 ? 's' : ''} failed or were skipped` : undefined
+          }
+        )
+        
+        // Dispatch custom event to refresh plot page if plot points were created
+        const plotPointsCreated = analysisResult.plotPoints.some(s => selectedSuggestions.has(s.id))
+        if (plotPointsCreated) {
+          console.log('📢 Dispatching plot-points-updated event to refresh plot page')
+          window.dispatchEvent(new CustomEvent('plot-points-updated'))
+          
+          // Also log what subplots were created
+          const createdSubplots = analysisResult.plotPoints
+            .filter(s => selectedSuggestions.has(s.id))
+            .map(s => {
+              const subplot = s.subplot && s.subplot.trim() !== '' && s.subplot.toLowerCase() !== 'main' 
+                ? s.subplot.trim() 
+                : 'main'
+              return subplot
+            })
+          const uniqueSubplots = [...new Set(createdSubplots)]
+          console.log(`📋 Created plot points for subplots:`, uniqueSubplots)
+        }
+        
         setIsOpen(false) // Close modal on success
       } else {
-        alert('No items were created. Please check for errors.')
+        toast.error('No items were created', {
+          description: errorCount > 0 ? 'Please check for errors in the console' : 'No items were selected'
+        })
       }
       
     } catch (err) {
       console.error('Creation error:', err)
-      alert('Failed to create selected items')
+      toast.error('Failed to create selected items', {
+        description: err instanceof Error ? err.message : 'An unexpected error occurred'
+      })
     } finally {
       setIsCreating(false)
     }
@@ -370,7 +471,7 @@ const ComprehensiveAnalysis = ({ bookId, className, open: controlledOpen, onOpen
                 <>
                   <Loader2 className="h-8 w-8 animate-spin text-purple-600 dark:text-purple-400" />
                   <p className="text-sm text-muted-foreground">Analyzing your book content...</p>
-                  <p className="text-xs text-muted-foreground">This may take 30-60 seconds</p>
+                  <p className="text-xs text-muted-foreground">This may take a while...</p>
                 </>
               ) : error ? (
                 <>

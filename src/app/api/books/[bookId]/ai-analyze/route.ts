@@ -20,7 +20,7 @@ export const revalidate = 0;
 export const maxDuration = 300; // 5 minutes (requires Vercel Enterprise)
 
 interface AnalyzeRequest {
-  type: 'brainstorming' | 'characters' | 'plot' | 'locations' | 'scenes' | 'full';
+  type: 'brainstorming' | 'characters' | 'plot' | 'locations' | 'scenes' | 'timeline' | 'full';
   options?: {
     generateEmbeddings?: boolean;
     maxSuggestions?: number;
@@ -30,6 +30,7 @@ interface AnalyzeRequest {
     cachedContext?: string | null;
     skipVectorSearch?: boolean;
     customDirection?: string;
+    customIdea?: string;
   };
 }
 
@@ -97,7 +98,8 @@ export async function POST(
           { 
             existingSuggestions: options.existingSuggestions || [],
             cachedContext: options.cachedContext,
-            skipVectorSearch: options.skipVectorSearch
+            skipVectorSearch: options.skipVectorSearch,
+            customIdea: options.customIdea
           }
         ) as unknown as { suggestions: any[], context: string };
         return Response.json({
@@ -118,7 +120,9 @@ export async function POST(
           { 
             existingSuggestions: options.existingSuggestions || [],
             cachedContext: options.cachedContext,
-            skipVectorSearch: options.skipVectorSearch
+            skipVectorSearch: options.skipVectorSearch,
+            customIdea: options.customIdea,
+            customRole: (options as any).customRole
           }
         ) as unknown as { suggestions: any[], context: string };
         return Response.json({
@@ -139,7 +143,8 @@ export async function POST(
           { 
             existingSuggestions: options.existingSuggestions || [],
             cachedContext: options.cachedContext,
-            skipVectorSearch: options.skipVectorSearch
+            skipVectorSearch: options.skipVectorSearch,
+            customIdea: options.customIdea
           }
         ) as unknown as { suggestions: any[], context: string };
         return Response.json({
@@ -160,7 +165,8 @@ export async function POST(
           { 
             existingSuggestions: options.existingSuggestions || [],
             cachedContext: options.cachedContext,
-            skipVectorSearch: options.skipVectorSearch
+            skipVectorSearch: options.skipVectorSearch,
+            customIdea: options.customIdea
           }
         ) as unknown as { suggestions: any[], context: string };
         return Response.json({
@@ -170,6 +176,28 @@ export async function POST(
           metadata: {
             analysisDate: new Date(),
             suggestionCount: sceneResult.suggestions.length,
+            usedCache: options.skipVectorSearch || false
+          }
+        });
+
+      case 'timeline':
+        const timelineResult = await aiOrchestrator.analyzeModule(
+          'timeline', 
+          bookId, 
+          { 
+            existingSuggestions: options.existingSuggestions || [],
+            cachedContext: options.cachedContext,
+            skipVectorSearch: options.skipVectorSearch,
+            customIdea: options.customIdea
+          }
+        ) as unknown as { suggestions: any[], context: string };
+        return Response.json({
+          type: 'timeline',
+          suggestions: timelineResult.suggestions.slice(0, options.maxSuggestions || 5),
+          context: timelineResult.context, // Return context for caching
+          metadata: {
+            analysisDate: new Date(),
+            suggestionCount: timelineResult.suggestions.length,
             usedCache: options.skipVectorSearch || false
           }
         });

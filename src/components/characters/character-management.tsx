@@ -9,8 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Plus, Users, Search, Edit, Trash2, User, Crown, Star, Eye, Camera } from 'lucide-react'
+import { Plus, Users, Search, Edit, Trash2, User, Crown, Star, Eye } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AICharacterSuggestions } from './ai-character-suggestions'
 import type { Character, CharacterRole } from '@prisma/client'
@@ -256,10 +255,6 @@ export function CharacterManagement({ bookId }: CharacterManagementProps) {
         </div>
         
         <div className="flex gap-2">
-          <AICharacterSuggestions 
-            bookId={bookId} 
-            onSuggestionAccepted={() => fetchCharacters()} 
-          />
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={resetForm}>
@@ -282,6 +277,10 @@ export function CharacterManagement({ bookId }: CharacterManagementProps) {
               />
             </DialogContent>
           </Dialog>
+          <AICharacterSuggestions 
+            bookId={bookId} 
+            onSuggestionAccepted={() => fetchCharacters()} 
+          />
         </div>
       </div>
 

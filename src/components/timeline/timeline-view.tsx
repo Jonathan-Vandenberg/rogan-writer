@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Plus, Calendar, Search, Edit, Trash2, MapPin, User, Clock } from 'lucide-react'
 import type { TimelineEvent, Character, Location } from '@prisma/client'
+import { AITimelineSuggestions } from './ai-timeline-suggestions'
 
 interface TimelineEventWithRelations extends TimelineEvent {
   character?: Character | null
@@ -352,6 +353,16 @@ export function TimelineView({ bookId }: TimelineViewProps) {
             ))}
           </SelectContent>
         </Select>
+
+        <AITimelineSuggestions 
+          bookId={bookId}
+          characters={characters}
+          locations={locations}
+          onSuggestionAccepted={() => {
+            // Refresh timeline events when a suggestion is accepted
+            fetchTimelineEvents()
+          }}
+        />
 
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>

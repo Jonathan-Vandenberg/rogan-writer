@@ -350,16 +350,43 @@ export class OpenRouterService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData: any = {};
+        try {
+          const responseText = await response.text();
+          if (responseText) {
+            errorData = JSON.parse(responseText);
+          }
+        } catch (e) {
+          // If JSON parsing fails, use status text as error message
+          errorData = { error: { message: response.statusText || 'Unknown error' } };
+        }
         throw new Error(
-          `OpenRouter API error: ${response.status} ${response.statusText}. ${errorData.error?.message || ''}`
+          `OpenRouter API error: ${response.status} ${response.statusText}. ${errorData.error?.message || errorData.message || ''}`
         );
       }
 
-      const data: OpenRouterChatResponse = await response.json();
+      // Get response as text first to check if it's valid JSON
+      const responseText = await response.text();
+      
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('Empty response from OpenRouter API');
+      }
+
+      let data: OpenRouterChatResponse;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse OpenRouter response:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseLength: responseText.length,
+          responsePreview: responseText.substring(0, 500),
+        });
+        throw new Error(`Invalid JSON response from OpenRouter: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+      }
 
       if (!data.choices || data.choices.length === 0) {
-        throw new Error('No response from OpenRouter');
+        throw new Error('No response choices from OpenRouter');
       }
 
       return {

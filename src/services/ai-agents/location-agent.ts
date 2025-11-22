@@ -24,6 +24,7 @@ export class LocationAgent extends AIAgent {
     const existingSuggestions = additionalContext?.existingSuggestions as Array<{ name: string; description: string }> | undefined;
     const cachedContext = additionalContext?.cachedContext as string | null | undefined;
     const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
+    const customIdea = additionalContext?.customIdea as string | undefined;
     console.log('🏰 Location Agent: Starting analysis...');
     
     // Get book details and ALL existing locations
@@ -75,6 +76,8 @@ export class LocationAgent extends AIAgent {
 
       EXISTING LOCATIONS (DO NOT DUPLICATE):
       ${existingLocationsList}
+
+      ${customIdea ? `CUSTOM LOCATION IDEA:\n${customIdea}\n\nUse this idea as the basis for location suggestions.` : ''}
 
       CRITICAL REQUIREMENTS:
       1. **AVOID ALL DUPLICATES**: Carefully review existing locations above. Do NOT suggest anything similar in name, description, or setting

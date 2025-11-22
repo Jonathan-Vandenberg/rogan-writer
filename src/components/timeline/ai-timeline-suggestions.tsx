@@ -7,26 +7,31 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Sparkles, Check, X, Loader2, Brain, AlertCircle } from "lucide-react"
+import { Sparkles, Check, X, Loader2, Calendar, AlertCircle, User, MapPin, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Character, Location } from "@prisma/client"
 
-interface BrainstormingSuggestion {
+interface TimelineEventSuggestion {
   id: string;
   title: string;
-  content: string;
+  description: string;
+  eventType: 'historical' | 'personal' | 'plot_event';
+  eventDate?: string;
+  startTime: number;
+  endTime: number;
+  characterName?: string;
+  locationName?: string;
   reasoning: string;
-  tags: string[];
   confidence: number;
-  relatedChapters: string[];
 }
 
-interface AISuggestionsProps {
+interface AITimelineSuggestionsProps {
   bookId: string;
-  onSuggestionAccepted?: (suggestion: BrainstormingSuggestion) => void;
+  characters: Character[];
+  locations: Location[];
+  onSuggestionAccepted?: (suggestion: TimelineEventSuggestion) => void;
   className?: string;
 }
-
-// Redis-based caching utilities
 
 // Generate a simple hash of book content to detect changes
 async function getBookContentHash(bookId: string): Promise<string> {
@@ -43,19 +48,19 @@ async function getBookContentHash(bookId: string): Promise<string> {
 }
 
 // Utility to clear cache for a specific book (call this when book content changes)
-export async function clearBrainstormingCache(bookId: string) {
+export async function clearTimelineCache(bookId: string) {
   try {
     await fetch(`/api/books/${bookId}/book-planning-cache`, { method: 'DELETE' });
-    console.log('🗑️ Cleared brainstorming cache for book:', bookId);
+    console.log('🗑️ Cleared timeline cache for book:', bookId);
   } catch (error) {
     console.error('Failed to clear cache:', error);
   }
 }
 
-export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISuggestionsProps) {
+export function AITimelineSuggestions({ bookId, characters, locations, onSuggestionAccepted, className }: AITimelineSuggestionsProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
-  const [suggestions, setSuggestions] = React.useState<BrainstormingSuggestion[]>([])
+  const [suggestions, setSuggestions] = React.useState<TimelineEventSuggestion[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const [acceptedSuggestions, setAcceptedSuggestions] = React.useState<Set<string>>(new Set())
   const [customIdea, setCustomIdea] = React.useState("")
@@ -126,7 +131,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
       // Include existing suggestions in the request to avoid duplicates
       const existingSuggestions = suggestions.map(s => ({
         title: s.title,
-        content: s.content.substring(0, 150)
+        description: s.description.substring(0, 150)
       }))
 
       // Check global cache first (async now due to content hash check)
@@ -139,7 +144,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
         console.log('❌ NO CACHE - Will perform full vector search');
       }
       
-      console.log(`🔄 Analysis request:`, {
+      console.log(`🔄 Timeline analysis request:`, {
         isAnalyzeMore,
         hasCachedContext: cachedContext !== null,
         cacheAge: cachedContext ? 'from global cache' : 'none',
@@ -151,7 +156,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          type: 'brainstorming',
+          type: 'timeline',
           options: {
             maxSuggestions: 5,
             existingSuggestions: isAnalyzeMore ? existingSuggestions : [],
@@ -169,7 +174,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
 
       const data = await response.json()
       
-      console.log('📥 Received response:', {
+      console.log('📥 Received timeline response:', {
         isAnalyzeMore,
         hasContext: !!data.context,
         contextLength: data.context?.length,
@@ -206,94 +211,117 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
       
       if (data.suggestions?.length === 0) {
         setError(isAnalyzeMore 
-          ? 'No additional suggestions could be generated. The AI has explored all available ideas.'
-          : 'No suggestions were generated. Try adding more content to your book chapters.')
+          ? 'No additional timeline events could be generated. The AI has explored all available ideas.'
+          : 'No timeline events were generated. Try adding more content to your book chapters.')
       }
     } catch (error) {
-      console.error('AI analysis error:', error)
+      console.error('AI timeline analysis error:', error)
       setError(error instanceof Error ? error.message : 'Failed to analyze book content')
     } finally {
       setIsAnalyzing(false)
     }
   }
 
-  const handleAcceptSuggestion = async (suggestion: BrainstormingSuggestion) => {
+  // Check for conflicts: same character at different locations at overlapping times
+  const checkForConflicts = async (suggestion: TimelineEventSuggestion): Promise<string | null> => {
+    if (!suggestion.characterName) {
+      return null; // No character, no conflict possible
+    }
+
     try {
-      // Create brainstorming note from suggestion
-      const response = await fetch(`/api/books/${bookId}/brainstorming`, {
+      // Fetch existing timeline events to check for conflicts
+      const response = await fetch(`/api/books/${bookId}/timeline-events`);
+      if (!response.ok) {
+        return null; // Can't check, proceed anyway
+      }
+
+      const existingEvents = await response.json();
+      const characterId = characters.find(c => c.name === suggestion.characterName)?.id;
+      
+      if (!characterId) {
+        return null; // Character not found, no conflict
+      }
+
+      // Check for overlapping events with the same character at different locations
+      const conflictingEvent = existingEvents.find((event: any) => {
+        // Same character
+        if (event.characterId !== characterId) {
+          return false;
+        }
+
+        // Different location (or one has location and other doesn't)
+        const eventLocationId = event.locationId;
+        const suggestionLocationId = suggestion.locationName 
+          ? locations.find(l => l.name === suggestion.locationName)?.id
+          : null;
+
+        // If both have locations and they're different, or one has location and other doesn't
+        if (eventLocationId && suggestionLocationId && eventLocationId !== suggestionLocationId) {
+          // Check if times overlap
+          const timesOverlap = !(
+            suggestion.endTime < event.startTime || 
+            suggestion.startTime > event.endTime
+          );
+          return timesOverlap;
+        }
+
+        return false;
+      });
+
+      if (conflictingEvent) {
+        const conflictLocation = locations.find(l => l.id === conflictingEvent.locationId)?.name || 'Unknown';
+        const suggestionLocation = suggestion.locationName || 'No location';
+        return `Conflict detected: ${suggestion.characterName} is already at "${conflictLocation}" during time ${conflictingEvent.startTime}-${conflictingEvent.endTime}, but this event places them at "${suggestionLocation}" during overlapping time ${suggestion.startTime}-${suggestion.endTime}.`;
+      }
+
+      return null; // No conflict
+    } catch (error) {
+      console.warn('Error checking for conflicts:', error);
+      return null; // Proceed anyway if check fails
+    }
+  }
+
+  const handleAcceptSuggestion = async (suggestion: TimelineEventSuggestion) => {
+    try {
+      // Check for conflicts first
+      const conflictMessage = await checkForConflicts(suggestion);
+      if (conflictMessage) {
+        const proceed = confirm(`${conflictMessage}\n\nDo you want to proceed anyway?`);
+        if (!proceed) {
+          return;
+        }
+      }
+
+      // Find character and location IDs from names
+      const characterId = suggestion.characterName 
+        ? characters.find(c => c.name === suggestion.characterName)?.id || null
+        : null;
+      
+      const locationId = suggestion.locationName 
+        ? locations.find(l => l.name === suggestion.locationName)?.id || null
+        : null;
+
+      // Create timeline event from suggestion
+      const response = await fetch(`/api/books/${bookId}/timeline-events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: suggestion.title,
-          content: suggestion.content,
-          tags: [...suggestion.tags, 'ai-generated']
+          description: suggestion.description,
+          eventDate: suggestion.eventDate || null,
+          startTime: suggestion.startTime,
+          endTime: suggestion.endTime,
+          characterId: characterId,
+          locationId: locationId
         })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create brainstorming note')
+        throw new Error('Failed to create timeline event')
       }
 
       // Mark as accepted
       setAcceptedSuggestions(prev => new Set([...prev, suggestion.id]))
-      
-      // Update Redis cache with new brainstorming note
-      console.log('🔄 Updating Redis cache with new brainstorming note...');
-      try {
-        const cacheResponse = await fetch(`/api/books/${bookId}/book-planning-cache`);
-        if (cacheResponse.ok) {
-          const cacheData = await cacheResponse.json();
-          if (cacheData.cached && cacheData.context) {
-            let updatedContext = cacheData.context;
-            
-            // Build the new brainstorming note text
-            const newNoteText = `1. "${suggestion.title}": ${suggestion.content.substring(0, 100)}... [${[...suggestion.tags, 'ai-generated'].join(', ')}]`;
-            
-            // Find the BRAINSTORMING IDEAS section and update it
-            const brainstormSectionMatch = updatedContext.match(/💡 EXISTING BRAINSTORMING IDEAS \((\d+) total\):/);
-            if (brainstormSectionMatch) {
-              const currentCount = parseInt(brainstormSectionMatch[1]);
-              const newCount = currentCount + 1;
-              
-              const brainstormStart = updatedContext.indexOf('💡 EXISTING BRAINSTORMING IDEAS');
-              const nextSectionStart = updatedContext.indexOf('\n\n', brainstormStart + 1);
-              
-              if (nextSectionStart !== -1) {
-                const beforeBrainstorm = updatedContext.substring(0, nextSectionStart);
-                const afterBrainstorm = updatedContext.substring(nextSectionStart);
-                updatedContext = `${beforeBrainstorm}\n${newNoteText}${afterBrainstorm}`;
-                updatedContext = updatedContext.replace(
-                  `💡 EXISTING BRAINSTORMING IDEAS (${currentCount} total):`,
-                  `💡 EXISTING BRAINSTORMING IDEAS (${newCount} total):`
-                );
-              } else {
-                updatedContext = `${updatedContext}\n${newNoteText}`;
-                updatedContext = updatedContext.replace(
-                  `💡 EXISTING BRAINSTORMING IDEAS (${currentCount} total):`,
-                  `💡 EXISTING BRAINSTORMING IDEAS (${newCount} total):`
-                );
-              }
-            } else {
-              updatedContext += `\n\n💡 EXISTING BRAINSTORMING IDEAS (1 total):\n${newNoteText}`;
-            }
-            
-            // Save updated context back to Redis
-            await fetch(`/api/books/${bookId}/book-planning-cache`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                context: updatedContext, 
-                contentHash: cacheData.contentHash 
-              })
-            });
-            console.log('✅ Cache updated successfully with new brainstorming note');
-          } else {
-            console.log('⚠️ No cache found, will rebuild on next analysis');
-          }
-        }
-      } catch (cacheError) {
-        console.warn('Failed to update cache, will rebuild on next analysis:', cacheError);
-      }
       
       // Notify parent component
       onSuggestionAccepted?.(suggestion)
@@ -303,7 +331,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
         setTimeout(() => setIsOpen(false), 1500)
       }
     } catch (error) {
-      console.error('Error accepting suggestion:', error)
+      console.error('Error accepting timeline suggestion:', error)
       alert('Failed to accept suggestion. Please try again.')
     }
   }
@@ -318,16 +346,30 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
     return "text-orange-600 bg-orange-50"
   }
 
+  const getEventTypeColor = (eventType: string) => {
+    switch (eventType) {
+      case 'historical':
+        return "bg-purple-100 text-purple-700"
+      case 'personal':
+        return "bg-blue-100 text-blue-700"
+      case 'plot_event':
+        return "bg-green-100 text-green-700"
+      default:
+        return "bg-gray-100 text-gray-700"
+    }
+  }
+
   const remainingSuggestions = suggestions.filter(s => !acceptedSuggestions.has(s.id))
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="lg" className={cn("gap-2", className)} onClick={() => {
-          console.log('Opening AI Suggestions modal, isAnalyzing:', isAnalyzing);
+          console.log('Opening AI Timeline Suggestions modal, isAnalyzing:', isAnalyzing);
           setIsOpen(true);
         }}>
           <Sparkles className="h-4 w-4" />
+          AI Timeline Suggestions
         </Button>
       </DialogTrigger>
       <DialogContent 
@@ -336,11 +378,11 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-purple-500" />
-            AI Brainstorming Suggestions
+            <Calendar className="h-5 w-5 text-green-500" />
+            AI Timeline Event Suggestions
           </DialogTitle>
           <DialogDescription>
-            Get AI-powered brainstorming suggestions based on your book content
+            Get AI-powered timeline event suggestions with character and location assignments
           </DialogDescription>
         </DialogHeader>
 
@@ -350,18 +392,18 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
               <CardContent>
                 <div className="space-y-4">
                   <div className="text-center">
-                    <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Ready to Generate Ideas</h3>
+                    <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Ready to Generate Timeline Events</h3>
                     <p className="text-muted-foreground mb-4">
-                      Optionally provide a brainstorming idea, or let AI analyze your book automatically
+                      Optionally provide a timeline idea, or let AI analyze your book automatically to suggest events
                     </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="custom-brainstorming-idea">Brainstorming Idea (Optional)</Label>
+                    <Label htmlFor="custom-timeline-idea">Timeline Idea (Optional)</Label>
                     <Textarea
-                      id="custom-brainstorming-idea"
-                      placeholder="e.g., Explore the protagonist's relationship with their estranged father, or Develop the backstory of the ancient artifact..."
+                      id="custom-timeline-idea"
+                      placeholder="e.g., Create a series of events showing the protagonist's journey from home to the capital, or Develop a timeline of the ancient war that shaped the current world..."
                       value={customIdea}
                       onChange={(e) => setCustomIdea(e.target.value)}
                       rows={3}
@@ -382,10 +424,10 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
             <Card className="text-center py-12">
               <CardContent>
                 <div className="relative inline-block mb-6">
-                  <Brain className="h-16 w-16 text-purple-500 mx-auto animate-pulse" />
+                  <Calendar className="h-16 w-16 text-green-500 mx-auto animate-pulse" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Analyzing Your Book</h3>
-                <p className="text-muted-foreground mb-4">Exploring your content and generating brainstorming suggestions...</p>
+                <p className="text-muted-foreground mb-4">Exploring your content and generating timeline event suggestions...</p>
               </CardContent>
             </Card>
           )}
@@ -411,7 +453,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">
-                  Suggested Brainstorming Topics ({remainingSuggestions.length})
+                  Suggested Timeline Events ({remainingSuggestions.length})
                 </h3>
                 {suggestions.length > remainingSuggestions.length && (
                   <Badge variant="secondary" className="gap-1">
@@ -422,23 +464,40 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
               </div>
 
               {remainingSuggestions.map((suggestion) => (
-                <Card key={suggestion.id} className="border-2 transition-colors hover:border-purple-200">
+                <Card key={suggestion.id} className="border-2 transition-colors hover:border-green-200">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <CardTitle className="text-lg">{suggestion.title}</CardTitle>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge 
                             variant="secondary" 
                             className={cn("text-xs", getConfidenceColor(suggestion.confidence))}
                           >
                             {Math.round(suggestion.confidence * 100)}% confidence
                           </Badge>
-                          {suggestion.tags.map(tag => (
-                            <Badge key={tag} variant="outline" className="text-xs">
-                              {tag}
+                          <Badge 
+                            variant="outline" 
+                            className={cn("text-xs", getEventTypeColor(suggestion.eventType))}
+                          >
+                            {suggestion.eventType}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Clock className="h-3 w-3" />
+                            Time {suggestion.startTime}-{suggestion.endTime}
+                          </Badge>
+                          {suggestion.characterName && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <User className="h-3 w-3" />
+                              {suggestion.characterName}
                             </Badge>
-                          ))}
+                          )}
+                          {suggestion.locationName && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {suggestion.locationName}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -464,11 +523,19 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <h4 className="font-medium text-sm mb-2">Brainstorming Content:</h4>
+                      <h4 className="font-medium text-sm mb-2">Event Description:</h4>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        {suggestion.content}
+                        {suggestion.description}
                       </p>
                     </div>
+                    {suggestion.eventDate && (
+                      <div>
+                        <h4 className="font-medium text-sm mb-2">In-Story Date:</h4>
+                        <p className="text-sm font-mono text-muted-foreground">
+                          {suggestion.eventDate}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <h4 className="font-medium text-sm mb-2">Why This Matters:</h4>
                       <p className="text-xs text-muted-foreground italic">
@@ -487,7 +554,7 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
                 <Check className="h-8 w-8 text-green-600 mx-auto mb-3" />
                 <h3 className="font-semibold text-green-800 mb-1">All Done!</h3>
                 <p className="text-green-700 text-sm">
-                  You've processed all AI suggestions. Check your brainstorming notes to see the accepted ideas.
+                  You've processed all AI suggestions. Check your timeline to see the accepted events.
                 </p>
               </CardContent>
             </Card>
@@ -497,10 +564,10 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
         {suggestions.length > 0 && remainingSuggestions.length > 0 && (
           <div className="space-y-4 pt-4 border-t">
             <div className="space-y-2">
-              <Label htmlFor="custom-brainstorming-idea-bottom" className="text-sm">Brainstorming Idea (Optional)</Label>
+              <Label htmlFor="custom-timeline-idea-bottom" className="text-sm">Timeline Idea (Optional)</Label>
               <Textarea
-                id="custom-brainstorming-idea-bottom"
-                placeholder="e.g., Explore the protagonist's relationship with their estranged father..."
+                id="custom-timeline-idea-bottom"
+                placeholder="e.g., Create events showing the protagonist's journey..."
                 value={customIdea}
                 onChange={(e) => setCustomIdea(e.target.value)}
                 rows={2}
@@ -537,3 +604,4 @@ export function AISuggestions({ bookId, onSuggestionAccepted, className }: AISug
     </Dialog>
   )
 }
+

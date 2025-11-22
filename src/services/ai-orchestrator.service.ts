@@ -65,21 +65,41 @@ export class AIOrchestrator {
       console.log(`🤖 AI Orchestrator: Found ${chapters.length} chapters, dispatching to agents...`);
 
       // Run all agents in parallel for maximum efficiency
-      const [
-        timelineEventsResult,
-        charactersResult,
-        locationsResult,
-        plotPointsResult,
-        sceneCardsResult,
-        brainstormingNotesResult
-      ] = await Promise.all([
-        this.timelineAgent.analyze(chapters, bookId),
-        this.characterAgent.analyze(chapters, bookId),
-        this.locationAgent.analyze(chapters, bookId),
-        this.plotAgent.analyze(chapters, bookId, 'main'), // Default to main subplot
-        this.sceneAgent.analyze(chapters, bookId),
-        this.brainstormingAgent.analyze(chapters, bookId)
+      // Use Promise.allSettled to handle individual failures gracefully
+      const results = await Promise.allSettled([
+        this.timelineAgent.analyze(chapters, bookId).catch(err => {
+          console.error('❌ Timeline agent error:', err);
+          return [];
+        }),
+        this.characterAgent.analyze(chapters, bookId).catch(err => {
+          console.error('❌ Character agent error:', err);
+          return [];
+        }),
+        this.locationAgent.analyze(chapters, bookId).catch(err => {
+          console.error('❌ Location agent error:', err);
+          return [];
+        }),
+        this.plotAgent.analyze(chapters, bookId, 'main').catch(err => {
+          console.error('❌ Plot agent error:', err);
+          return [];
+        }),
+        this.sceneAgent.analyze(chapters, bookId).catch(err => {
+          console.error('❌ Scene agent error:', err);
+          return [];
+        }),
+        this.brainstormingAgent.analyze(chapters, bookId).catch(err => {
+          console.error('❌ Brainstorming agent error:', err);
+          return [];
+        })
       ]);
+
+      // Extract results, handling both fulfilled and rejected promises
+      const timelineEventsResult = results[0].status === 'fulfilled' ? results[0].value : [];
+      const charactersResult = results[1].status === 'fulfilled' ? results[1].value : [];
+      const locationsResult = results[2].status === 'fulfilled' ? results[2].value : [];
+      const plotPointsResult = results[3].status === 'fulfilled' ? results[3].value : [];
+      const sceneCardsResult = results[4].status === 'fulfilled' ? results[4].value : [];
+      const brainstormingNotesResult = results[5].status === 'fulfilled' ? results[5].value : [];
 
       // Extract suggestions from agents that return { suggestions, context } objects
       // Some agents return arrays directly, others return objects with suggestions property
@@ -158,7 +178,8 @@ export class AIOrchestrator {
           }
           
         case 'timeline':
-          return await this.timelineAgent.analyze(chapters, bookId);
+          // TimelineAgent returns { suggestions, context } instead of array
+          return await this.timelineAgent.analyze(chapters, bookId, additionalContext);
           
         case 'scenes':
           return await this.sceneAgent.analyze(chapters, bookId);

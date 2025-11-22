@@ -63,7 +63,7 @@ export async function POST(
     // 🚀 AUTO-GENERATE EMBEDDING for new brainstorming note
     try {
       const { aiEmbeddingService } = await import('@/services/ai-embedding.service')
-      await aiEmbeddingService.updateBrainstormingEmbeddingById(note.id)
+      await aiEmbeddingService.updateBrainstormingEmbeddingById(note.id, session.user.id)
       console.log(`✅ Generated embedding for brainstorming note: ${note.id}`)
     } catch (embeddingError) {
       console.error(`⚠️ Failed to generate embedding for brainstorming note ${note.id}:`, embeddingError)

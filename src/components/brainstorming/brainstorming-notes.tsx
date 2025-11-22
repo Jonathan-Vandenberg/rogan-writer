@@ -158,13 +158,6 @@ export function BrainstormingNotes({ bookId }: BrainstormingNotesProps) {
         </div>
         
         <div className="flex gap-2">
-          <AISuggestions 
-            bookId={bookId} 
-            onSuggestionAccepted={() => {
-              // Refresh notes when a suggestion is accepted
-              fetchNotes()
-            }}
-          />
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={resetForm}>
@@ -191,6 +184,13 @@ export function BrainstormingNotes({ bookId }: BrainstormingNotesProps) {
             />
           </DialogContent>
         </Dialog>
+        <AISuggestions 
+            bookId={bookId} 
+            onSuggestionAccepted={() => {
+              // Refresh notes when a suggestion is accepted
+              fetchNotes()
+            }}
+          />
         </div>
       </div>
 

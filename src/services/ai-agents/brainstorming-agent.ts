@@ -23,6 +23,7 @@ export class BrainstormingAgent extends AIAgent {
     const existingSuggestions = additionalContext?.existingSuggestions as Array<{ title: string; content: string }> | undefined;
     const cachedContext = additionalContext?.cachedContext as string | null | undefined;
     const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
+    const customIdea = additionalContext?.customIdea as string | undefined;
     console.log('💡 Brainstorming Agent: Starting analysis...');
     
     // Get book details and ALL existing brainstorming notes
@@ -74,6 +75,8 @@ export class BrainstormingAgent extends AIAgent {
 
       EXISTING BRAINSTORMING IDEAS (DO NOT DUPLICATE - CREATE COMPLETELY NEW IDEAS):
       ${existingBrainstormingList}
+
+      ${customIdea ? `CUSTOM BRAINSTORMING IDEA:\n${customIdea}\n\nUse this idea as the basis for brainstorming suggestions.` : ''}
 
       CRITICAL REQUIREMENTS:
       1. **AVOID ALL DUPLICATES**: Carefully review existing ideas above. Do NOT suggest anything similar in theme, topic, or approach

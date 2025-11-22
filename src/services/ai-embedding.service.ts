@@ -105,18 +105,32 @@ export class AIEmbeddingService {
   /**
    * Update brainstorming note embedding (fetches content internally)
    */
-  async updateBrainstormingEmbeddingById(brainstormingId: string): Promise<void> {
+  async updateBrainstormingEmbeddingById(brainstormingId: string, userId?: string): Promise<void> {
     try {
       const note = await prisma.brainstormingNote.findUnique({
         where: { id: brainstormingId },
-        select: { title: true, content: true }
+        select: { 
+          title: true, 
+          content: true,
+          bookId: true
+        }
       });
 
       if (!note) return;
 
+      // Get userId from book if not provided
+      let finalUserId = userId;
+      if (!finalUserId) {
+        const book = await prisma.book.findUnique({
+          where: { id: note.bookId },
+          select: { userId: true }
+        });
+        finalUserId = book?.userId;
+      }
+
       // Combine title and content for embedding
       const combinedText = `${note.title}\n${note.content}`;
-      const embedding = await this.generateEmbedding(combinedText);
+      const embedding = await this.generateEmbedding(combinedText, finalUserId);
 
       await prisma.$executeRaw`
         UPDATE brainstorming_notes 

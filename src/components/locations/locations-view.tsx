@@ -226,12 +226,6 @@ export function LocationsView({ className }: LocationsViewProps) {
           </div>
           </div>
           <div className="flex gap-2">
-            {selectedBookId && (
-              <AILocationSuggestions 
-                bookId={selectedBookId} 
-                onSuggestionAccepted={() => fetchLocations()} 
-              />
-            )}
             <Button 
               onClick={() => {
                 setEditingLocation(null)
@@ -243,6 +237,12 @@ export function LocationsView({ className }: LocationsViewProps) {
               <Plus className="h-4 w-4" />
               Add Location
             </Button>
+            {selectedBookId && (
+              <AILocationSuggestions 
+                bookId={selectedBookId} 
+                onSuggestionAccepted={() => fetchLocations()} 
+              />
+            )}
           </div>
         </div>
 

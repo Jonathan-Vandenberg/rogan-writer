@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ExportService } from '@/services'
 import { BookService } from '@/services'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { s3Service } from '@/services/s3.service'
 import puppeteer from 'puppeteer'
+
+// Detect if we're in a serverless environment (Vercel, etc.)
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production'
 
 export async function POST(
   request: Request,
@@ -32,12 +33,6 @@ export async function POST(
     const book = await BookService.getBookById(exportRequest.bookId)
     if (!book) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 })
-    }
-
-    // Ensure exports directory exists
-    const exportsDir = join(process.cwd(), 'public', 'exports')
-    if (!existsSync(exportsDir)) {
-      await mkdir(exportsDir, { recursive: true })
     }
 
     try {
@@ -85,33 +80,72 @@ export async function POST(
           break
       }
 
-      // Write file
-      const filePath = join(exportsDir, fileName)
-      
-      if (typeof fileBuffer === 'string') {
-        await writeFile(filePath, fileBuffer, 'utf-8')
-      } else {
-        await writeFile(filePath, fileBuffer)
-      }
+      // Convert string buffer to Buffer if needed
+      const bufferToUpload = typeof fileBuffer === 'string' 
+        ? Buffer.from(fileBuffer, 'utf-8')
+        : fileBuffer
 
-      // Send to Kindle if requested
+      // Upload to S3
+      console.log(`📤 Uploading ${exportRequest.format} export to S3...`)
+      const s3Result = await s3Service.uploadExport({
+        fileBuffer: bufferToUpload,
+        bookId: exportRequest.bookId,
+        exportId: exportId,
+        fileName: fileName,
+        format: exportRequest.format,
+      })
+      
+      console.log(`✅ Export uploaded to S3: ${s3Result.s3Key}`)
+
+      // Send to Kindle if requested (download from S3 first)
       if (shouldSendToKindle && kindleEmail) {
         try {
-          await sendToKindle(filePath, fileName, kindleEmail, book.title)
+          // Download file from S3 to send via email
+          const fileBufferForEmail = await s3Service.downloadFile(s3Result.s3Key)
+          const tmpFilePath = `/tmp/${fileName}`
+          const fs = await import('fs/promises')
+          await fs.writeFile(tmpFilePath, fileBufferForEmail)
+          
+          await sendToKindle(tmpFilePath, fileName, kindleEmail, book.title)
           console.log(`📧 Sent ${fileName} to Kindle: ${kindleEmail}`)
+          
+          // Clean up tmp file
+          try {
+            await fs.unlink(tmpFilePath)
+          } catch (cleanupError) {
+            console.warn('Could not clean up tmp file:', cleanupError)
+          }
         } catch (error) {
           console.error('Error sending to Kindle:', error)
           // Don't fail the export if email fails - file is still generated
         }
       }
 
-      // Update export with file URL
-      const fileUrl = `/exports/${fileName}`
-      await ExportService.updateExportStatus(exportId, 'COMPLETED', fileUrl)
+      // Generate download URL with proper content type
+      const contentTypes: Record<string, string> = {
+        'PDF': 'application/pdf',
+        'EPUB': 'application/epub+zip',
+        'MOBI': 'application/x-mobipocket-ebook',
+        'KINDLE': 'application/x-mobipocket-ebook',
+        'TXT': 'text/plain',
+        'HTML': 'text/html',
+      }
+      const contentType = contentTypes[exportRequest.format.toUpperCase()] || 'application/octet-stream'
+      
+      // Generate signed download URL (valid for 7 days)
+      const downloadUrl = await s3Service.getExportDownloadUrl(
+        s3Result.s3Key,
+        fileName,
+        contentType,
+        7 * 24 * 60 * 60 // 7 days
+      )
+
+      // Update export with download URL (signed S3 URL)
+      await ExportService.updateExportStatus(exportId, 'COMPLETED', downloadUrl)
 
       return NextResponse.json({ 
         success: true, 
-        fileUrl, 
+        fileUrl: downloadUrl, 
         message: shouldSendToKindle 
           ? 'Export completed and sent to Kindle!' 
           : 'Export completed successfully' 
@@ -177,10 +211,47 @@ async function generatePDF(book: any, settings: any): Promise<Buffer> {
   if (!book.chapters || book.chapters.length === 0) {
     throw new Error('No chapters found in book')
   }
-  const browser = await puppeteer.launch({ 
+  
+  // Configure Puppeteer for serverless environments
+  const launchOptions: any = {
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  })
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process', // Important for serverless
+      '--disable-gpu'
+    ]
+  }
+  
+  // In serverless/production, try to use bundled Chrome or system Chrome
+  if (isServerless) {
+    // Try to use Chromium from @sparticuz/chromium if available
+    try {
+      // Use eval to avoid TypeScript errors for optional dependency
+      const chromiumModule = await eval('import("@sparticuz/chromium")').catch(() => null) as any
+      if (chromiumModule && chromiumModule.default) {
+        const chromium = chromiumModule.default
+        if (typeof chromium.setGraphicsMode === 'function') {
+          chromium.setGraphicsMode(false) // Disable graphics for serverless
+        }
+        if (typeof chromium.executablePath === 'function') {
+          launchOptions.executablePath = await chromium.executablePath()
+          console.log('✅ Using @sparticuz/chromium for PDF generation')
+        }
+      }
+    } catch (chromiumError) {
+      console.warn('⚠️ @sparticuz/chromium not available, trying system Chrome:', chromiumError)
+      // Fall back to system Chrome or puppeteer's bundled Chrome
+      // Puppeteer should handle this, but we may need to install Chrome separately
+      // In Vercel, you may need to install Chrome via build command or use puppeteer-core
+    }
+  }
+  
+  const browser = await puppeteer.launch(launchOptions)
   
   try {
     const page = await browser.newPage()

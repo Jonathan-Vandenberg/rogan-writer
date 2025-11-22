@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 
-import { Plus, Target, Edit, Trash2, CheckCircle, Circle, MoreHorizontal } from 'lucide-react'
+import { Plus, Target, Edit, Trash2, CheckCircle, Circle, MoreHorizontal, Sparkles } from 'lucide-react'
 import { AIPlotSuggestions } from './ai-plot-suggestions'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { PlotPoint, PlotPointType } from '@prisma/client'
@@ -149,6 +149,38 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
   useEffect(() => {
     fetchPlotPoints()
   }, [fetchPlotPoints])
+
+  // Refresh when page becomes visible (user switches back to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('📋 Page visible, refreshing plot points...')
+        fetchPlotPointsSilently()
+      }
+    }
+
+    // Refresh when window regains focus (user switches back to tab/window)
+    const handleFocus = () => {
+      console.log('📋 Window focused, refreshing plot points...')
+      fetchPlotPointsSilently()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    // Also listen for custom refresh events (e.g., from comprehensive analysis)
+    const handleRefreshEvent = () => {
+      console.log('📋 Refresh event received, refreshing plot points...')
+      fetchPlotPointsSilently()
+    }
+    window.addEventListener('plot-points-updated', handleRefreshEvent)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('plot-points-updated', handleRefreshEvent)
+    }
+  }, [fetchPlotPointsSilently])
 
   const getPlotPointForSubplot = (subplot: string, type: PlotPointType): PlotPointWithSubplot | null => {
     return plotPoints.find(p => (p.subplot || 'main') === subplot && p.type === type) || null
@@ -344,7 +376,7 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
           </div>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-2">     
           {/* Manual Subplot Creation Modal */}
           <Dialog open={isAddSubplotOpen} onOpenChange={setIsAddSubplotOpen}>
             <DialogTrigger asChild>
@@ -401,12 +433,17 @@ export function PlotStructureMatrix({ bookId }: PlotStructureMatrixProps) {
             </DialogContent>
           </Dialog>
 
-          {/* AI Plot Suggestions Modal - Separate */}
+          {/* AI Plot Suggestions Button */}
           <AIPlotSuggestions
             bookId={bookId}
             onPlotAccepted={handleSuggestionAccepted}
             isOpen={isAIPlotOpen}
             onOpenChange={setIsAIPlotOpen}
+            triggerButton={
+              <Button variant="outline" size="lg" className="gap-2">
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            }
           />
         </div>
       </div>

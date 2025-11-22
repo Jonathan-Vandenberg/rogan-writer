@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { Sparkles, Check, X, Loader2, Users, AlertCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
@@ -60,6 +63,8 @@ export function AICharacterSuggestions({ bookId, onSuggestionAccepted, className
   const [selectedSuggestions, setSelectedSuggestions] = React.useState<Set<string>>(new Set())
   const [acceptedSuggestions, setAcceptedSuggestions] = React.useState<Set<string>>(new Set())
   const [isCreating, setIsCreating] = React.useState(false)
+  const [customIdea, setCustomIdea] = React.useState("")
+  const [customRole, setCustomRole] = React.useState<string>("")
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   
   // Get cached context from Redis, checking content hash
@@ -146,7 +151,9 @@ export function AICharacterSuggestions({ bookId, onSuggestionAccepted, className
                  ...suggestions.filter(s => !acceptedSuggestions.has(s.id))]
               : [],
             cachedContext,
-            skipVectorSearch: !!cachedContext
+            skipVectorSearch: !!cachedContext,
+            customIdea: customIdea.trim() || undefined,
+            customRole: customRole || undefined
           }
         }),
       });
@@ -334,14 +341,13 @@ export function AICharacterSuggestions({ bookId, onSuggestionAccepted, className
       <DialogTrigger asChild>
         <Button 
           variant="outline" 
-          size="sm"
+          size="lg"
           className={cn("gap-2", className)}
         >
           <Sparkles className="h-4 w-4" />
-          AI Character Suggestions
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="!max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -369,20 +375,55 @@ export function AICharacterSuggestions({ bookId, onSuggestionAccepted, className
 
           {suggestions.length === 0 && !isAnalyzing && (
             <Card className="border-dashed">
-              <CardContent className="pt-6 text-center py-12">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-lg font-medium mb-2">Ready to discover new characters</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Click "Generate Suggestions" to let AI analyze your story and suggest characters
-                </p>
-                <Button 
-                  onClick={() => handleAnalyze(false)} 
-                  disabled={isAnalyzing}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {isAnalyzing ? 'Analyzing...' : 'Generate Suggestions'}
-                </Button>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium mb-2">Ready to discover new characters</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Optionally provide a character idea and role, or let AI analyze your story automatically
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-idea">Character Idea (Optional)</Label>
+                      <Textarea
+                        id="custom-idea"
+                        placeholder="e.g., A mysterious mentor figure who appears in dreams, or A comedic sidekick with a hidden past..."
+                        value={customIdea}
+                        onChange={(e) => setCustomIdea(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-role">Preferred Role (Optional)</Label>
+                      <Select value={customRole || undefined} onValueChange={(value) => setCustomRole(value || "")}>
+                        <SelectTrigger id="custom-role">
+                          <SelectValue placeholder="Select a role (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PROTAGONIST">Protagonist</SelectItem>
+                          <SelectItem value="ANTAGONIST">Antagonist</SelectItem>
+                          <SelectItem value="MAJOR">Major Character</SelectItem>
+                          <SelectItem value="MINOR">Minor Character</SelectItem>
+                          <SelectItem value="CAMEO">Cameo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={() => handleAnalyze(false)} 
+                    disabled={isAnalyzing}
+                    className="gap-2 w-full"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isAnalyzing ? 'Analyzing...' : 'Generate Suggestions'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -468,31 +509,64 @@ export function AICharacterSuggestions({ bookId, onSuggestionAccepted, className
                 <Loader2 className="h-12 w-12 mx-auto text-muted-foreground mb-4 animate-spin" />
                 <p className="text-lg font-medium mb-2">Analyzing your story...</p>
                 <p className="text-sm text-muted-foreground">
-                  AI is reviewing your book's content to suggest relevant characters
+                  AI is reviewing your planning and book content
                 </p>
               </CardContent>
             </Card>
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            {suggestions.length > 0 && (
-              <span>
-                {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} · {selectedSuggestions.size} selected · {acceptedSuggestions.size} accepted
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => handleAnalyze(true)}
-              disabled={isAnalyzing || isCreating || suggestions.length === 0}
-              className="gap-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              {isAnalyzing ? 'Analyzing...' : 'Analyze More'}
-            </Button>
+        <div className="space-y-4 pt-4 border-t">
+          {(suggestions.length > 0 || isAnalyzing) && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="custom-idea-bottom" className="text-sm">Character Idea (Optional)</Label>
+                <Textarea
+                  id="custom-idea-bottom"
+                  placeholder="e.g., A mysterious mentor figure who appears in dreams..."
+                  value={customIdea}
+                  onChange={(e) => setCustomIdea(e.target.value)}
+                  rows={2}
+                  className="resize-none text-sm"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="custom-role-bottom" className="text-sm">Preferred Role (Optional)</Label>
+                <Select value={customRole || undefined} onValueChange={(value) => setCustomRole(value || "")}>
+                  <SelectTrigger id="custom-role-bottom" className="h-9">
+                    <SelectValue placeholder="Select a role (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PROTAGONIST">Protagonist</SelectItem>
+                    <SelectItem value="ANTAGONIST">Antagonist</SelectItem>
+                    <SelectItem value="MAJOR">Major Character</SelectItem>
+                    <SelectItem value="MINOR">Minor Character</SelectItem>
+                    <SelectItem value="CAMEO">Cameo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              {suggestions.length > 0 && (
+                <span>
+                  {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} · {selectedSuggestions.size} selected · {acceptedSuggestions.size} accepted
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleAnalyze(true)}
+                disabled={isAnalyzing || isCreating || suggestions.length === 0}
+                className="gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isAnalyzing ? 'Analyzing...' : 'Analyze More'}
+              </Button>
             {selectedSuggestions.size > 0 && (
               <Button
                 onClick={handleConfirmSelected}
@@ -519,6 +593,7 @@ export function AICharacterSuggestions({ bookId, onSuggestionAccepted, className
             >
               Done
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -25,6 +25,7 @@ export class SceneAgent extends AIAgent {
     const existingSuggestions = additionalContext?.existingSuggestions as Array<{ title: string; description: string }> | undefined;
     const cachedContext = additionalContext?.cachedContext as string | null | undefined;
     const skipVectorSearch = additionalContext?.skipVectorSearch as boolean | undefined;
+    const customIdea = additionalContext?.customIdea as string | undefined;
     console.log('🎬 Scene Agent: Starting analysis...');
     
     // Get existing scene cards
@@ -65,6 +66,8 @@ export class SceneAgent extends AIAgent {
 
       EXISTING SCENE CARDS (DO NOT DUPLICATE):
       ${existingScenesList}
+
+      ${customIdea ? `CUSTOM SCENE IDEA:\n${customIdea}\n\nUse this idea as the basis for scene suggestions.` : ''}
 
       CRITICAL REQUIREMENTS:
       1. **AVOID ALL DUPLICATES**: Carefully review existing scene cards above. Do NOT suggest anything similar in title, description, or purpose

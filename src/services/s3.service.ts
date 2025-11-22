@@ -29,6 +29,15 @@ interface UploadCoverImageParams {
   contentType?: string;
 }
 
+interface UploadExportParams {
+  fileBuffer: Buffer;
+  bookId: string;
+  exportId: string;
+  fileName: string;
+  format: string;
+  contentType?: string;
+}
+
 interface S3AudioFile {
   s3Key: string;
   url: string;
@@ -37,6 +46,13 @@ interface S3AudioFile {
 }
 
 interface S3ImageFile {
+  s3Key: string;
+  url: string;
+  signedUrl: string;
+  size: number;
+}
+
+interface S3ExportFile {
   s3Key: string;
   url: string;
   signedUrl: string;
@@ -220,6 +236,35 @@ export class S3Service {
   }
 
   /**
+   * Download any file from S3 as buffer (generic method)
+   */
+  async downloadFile(s3Key: string): Promise<Buffer> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+      });
+
+      const response = await this.client.send(command);
+      
+      if (!response.Body) {
+        throw new Error('No body in S3 response');
+      }
+
+      // Convert stream to buffer
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of response.Body as any) {
+        chunks.push(chunk);
+      }
+      
+      return Buffer.concat(chunks);
+    } catch (error) {
+      console.error('❌ Error downloading file from S3:', error);
+      throw new Error(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Upload image file to S3
    */
   async uploadImage(params: UploadImageParams): Promise<S3ImageFile> {
@@ -321,6 +366,103 @@ export class S3Service {
     } catch (error) {
       console.error('❌ Error deleting image from S3:', error);
       throw new Error(`Failed to delete image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Upload export file (PDF, EPUB, MOBI, etc.) to S3
+   */
+  async uploadExport(params: UploadExportParams): Promise<S3ExportFile> {
+    const { fileBuffer, bookId, exportId, fileName, format, contentType } = params;
+
+    // Determine content type based on format if not provided
+    const contentTypes: Record<string, string> = {
+      'PDF': 'application/pdf',
+      'EPUB': 'application/epub+zip',
+      'MOBI': 'application/x-mobipocket-ebook',
+      'KINDLE': 'application/x-mobipocket-ebook',
+      'TXT': 'text/plain',
+      'HTML': 'text/html',
+    };
+    const finalContentType = contentType || contentTypes[format.toUpperCase()] || 'application/octet-stream';
+
+    // Generate S3 key with organized folder structure
+    const s3Key = `exports/${bookId}/${exportId}/${fileName}`;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+        Body: fileBuffer,
+        ContentType: finalContentType,
+        Metadata: {
+          bookId,
+          exportId,
+          format,
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+
+      await this.client.send(command);
+
+      // Generate public URL
+      const url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
+
+      // Generate signed URL (valid for 7 days for exports)
+      const signedUrl = await this.getSignedUrl(s3Key, 7 * 24 * 60 * 60);
+
+      console.log(`✅ Export uploaded to S3: ${s3Key}`);
+
+      return {
+        s3Key,
+        url,
+        signedUrl,
+        size: fileBuffer.length,
+      };
+    } catch (error) {
+      console.error('❌ Error uploading export to S3:', error);
+      throw new Error(`Failed to upload export: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get signed URL for export file with download disposition
+   */
+  async getExportDownloadUrl(s3Key: string, fileName: string, contentType: string, expiresIn: number = 3600): Promise<string> {
+    try {
+      const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+      
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+        ResponseContentDisposition: `attachment; filename="${fileName}"`,
+        ResponseContentType: contentType,
+      });
+
+      const signedUrl = await getSignedUrl(this.client, command, { expiresIn });
+      return signedUrl;
+    } catch (error) {
+      console.error('❌ Error generating export download URL:', error);
+      throw new Error(`Failed to generate download URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete export file from S3
+   */
+  async deleteExport(s3Key: string): Promise<void> {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+      });
+
+      await this.client.send(command);
+      console.log(`🗑️  Export deleted from S3: ${s3Key}`);
+    } catch (error) {
+      console.error('❌ Error deleting export from S3:', error);
+      throw new Error(`Failed to delete export: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

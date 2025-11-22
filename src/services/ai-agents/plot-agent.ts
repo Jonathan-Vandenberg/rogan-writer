@@ -151,7 +151,7 @@ export class PlotAgent extends AIAgent {
           "description": "Detailed description of what happens",
           "reasoning": "Why this plot point is needed and how it fits",
           "confidence": 0.85,
-          "subplot": "${subplot}",
+          "subplot": "${subplot === 'main' ? 'Generate a creative subplot name based on the book content (e.g., "Character Name Quest", "Location Mystery", "Relationship Arc"). If this is for the main plot, use "main". Otherwise, create a descriptive subplot name.' : subplot}",
           "relatedChapters": ["chapter1", "chapter2"],
           "consistencyIssues": [
             {
@@ -167,6 +167,13 @@ export class PlotAgent extends AIAgent {
           ]
         }
       ]
+
+      IMPORTANT FOR SUBPLOT NAMES:
+      - If Target Subplot is "main", you can suggest plot points for "main" OR create NEW subplot names based on the book content
+      - For NEW subplots, generate creative, descriptive names like "Character Name's Journey", "Location Mystery", "Relationship Arc", etc.
+      - Each plot point suggestion should include a "subplot" field with either "main" or a new descriptive subplot name
+      - Group related plot points under the same subplot name
+      - Subplot names should be 2-5 words and clearly describe the story arc
 
       Only suggest plot points for missing types or those needing improvement.
       Use exact database IDs when referencing existing plot points.
@@ -342,10 +349,13 @@ ${customDirectionSection}
 
       CRITICAL REQUIREMENTS:
       1. Create completely NEW plot structures - avoid all duplicates
-      2. Generate EXACTLY ONE plot point for EACH of the 7 sections (keep descriptions concise - max 100 chars)
+      2. Generate EXACTLY ONE plot point for EACH of the 7 sections
       3. Ensure ALL 7 sections have exactly 1 plot point each
       4. Base everything on the planning data above${customDirection ? ' AND the custom direction provided' : ''}
-      5. Keep titles short (max 5 words) and descriptions brief
+      5. Keep titles short (max 5 words)
+      6. Write detailed, vivid descriptions (2-3 sentences, approximately 150-250 characters) that paint a clear picture of what happens in this plot point
+      7. DO NOT include character counts or word counts in descriptions - write only the narrative description
+      8. Make descriptions engaging and specific, showing the scene or action clearly
 
       Return a JSON array with this EXACT structure:
       [
@@ -354,25 +364,25 @@ ${customDirectionSection}
           "description": "Brief overview (1 sentence max)",
           "plotPoints": {
             "hook": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ],
             "plotTurn1": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ],
             "pinch1": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ],
             "midpoint": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ],
             "pinch2": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ],
             "plotTurn2": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ],
             "resolution": [
-              { "title": "Short Title", "description": "Brief description under 100 chars", "orderIndex": 0 }
+              { "title": "Short Title", "description": "Detailed 2-3 sentence description of what happens in this plot point, painting a vivid picture of the scene or action.", "orderIndex": 0 }
             ]
           },
           "reasoning": "Brief reason (2 sentences)",
@@ -380,29 +390,52 @@ ${customDirectionSection}
         }
       ]
 
-      Generate 3 distinct, complete plot structures. Keep ALL content CONCISE. Ensure valid, complete JSON.
+      Generate 3 distinct, complete plot structures. Write detailed, engaging descriptions for each plot point. Ensure valid, complete JSON.
     `;
 
     try {
       const response = await this.callOpenAI(prompt, bookId);
       const plotStructures = this.cleanAndParseJSON(response);
 
-      const suggestions = plotStructures.slice(0, 3).map((structure: any, index: number) => ({
-        id: `plot_structure_${Date.now()}_${index}`,
-        title: structure.title || 'Untitled Plot Structure',
-        description: structure.description || '',
-        plotPoints: structure.plotPoints || {
-          hook: [],
-          plotTurn1: [],
-          pinch1: [],
-          midpoint: [],
-          pinch2: [],
-          plotTurn2: [],
-          resolution: []
-        },
-        reasoning: structure.reasoning || '',
-        confidence: typeof structure.confidence === 'number' ? structure.confidence : 0.7
-      }));
+      // Helper function to clean descriptions and remove character/word counts
+      const cleanDescription = (desc: string): string => {
+        if (!desc) return '';
+        // Remove patterns like "(52 chars)", "(100 chars)", "(52 characters)", etc.
+        return desc
+          .replace(/\s*\(?\d+\s*(chars?|characters?|words?)\)?\s*$/gi, '')
+          .replace(/\s*\(?\d+\s*(chars?|characters?|words?)\)?\s*$/gi, '') // Run twice to catch nested patterns
+          .trim();
+      };
+
+      const suggestions = plotStructures.slice(0, 3).map((structure: any, index: number) => {
+        // Clean all plot point descriptions
+        const cleanedPlotPoints: any = {};
+        if (structure.plotPoints) {
+          Object.keys(structure.plotPoints).forEach((key: string) => {
+            cleanedPlotPoints[key] = (structure.plotPoints[key] || []).map((point: any) => ({
+              ...point,
+              description: cleanDescription(point.description || '')
+            }));
+          });
+        }
+
+        return {
+          id: `plot_structure_${Date.now()}_${index}`,
+          title: structure.title || 'Untitled Plot Structure',
+          description: cleanDescription(structure.description || ''),
+          plotPoints: cleanedPlotPoints.hook ? cleanedPlotPoints : {
+            hook: [],
+            plotTurn1: [],
+            pinch1: [],
+            midpoint: [],
+            pinch2: [],
+            plotTurn2: [],
+            resolution: []
+          },
+          reasoning: cleanDescription(structure.reasoning || ''),
+          confidence: typeof structure.confidence === 'number' ? structure.confidence : 0.7
+        };
+      });
 
       console.log(`🎭 Plot Agent: Generated ${suggestions.length} complete plot structures`);
       return {

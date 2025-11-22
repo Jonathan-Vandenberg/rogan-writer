@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Sparkles, Check, X, Loader2, Film, AlertCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
@@ -60,6 +62,8 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
   const [selectedSuggestions, setSelectedSuggestions] = React.useState<Set<string>>(new Set())
   const [acceptedSuggestions, setAcceptedSuggestions] = React.useState<Set<string>>(new Set())
   const [isCreating, setIsCreating] = React.useState(false)
+  const [creatingSuggestions, setCreatingSuggestions] = React.useState<Set<string>>(new Set())
+  const [customIdea, setCustomIdea] = React.useState("")
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   
   // Get cached context from Redis, checking content hash
@@ -146,7 +150,8 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
                  ...suggestions.filter(s => !acceptedSuggestions.has(s.id))]
               : [],
             cachedContext,
-            skipVectorSearch: !!cachedContext
+            skipVectorSearch: !!cachedContext,
+            customIdea: customIdea.trim() || undefined
           }
         }),
       });
@@ -213,7 +218,11 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
       
       console.log(`🎬 Creating ${selectedScenes.length} scene cards...`);
       for (const suggestion of selectedScenes) {
-        console.log(`📝 Creating scene: ${suggestion.title}`);
+        // Mark this suggestion as being created
+        setCreatingSuggestions(prev => new Set([...prev, suggestion.id]))
+        
+        try {
+          console.log(`📝 Creating scene: ${suggestion.title}`);
         const response = await fetch(`/api/books/${bookId}/scene-cards`, {
           method: 'POST',
           headers: {
@@ -234,11 +243,22 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
           throw new Error(`Failed to create scene card: ${suggestion.title}`);
         }
 
-        console.log(`✅ Created scene: ${suggestion.title}`);
-        createdCount++;
+          console.log(`✅ Created scene: ${suggestion.title}`);
+          createdCount++;
 
-        // Mark as accepted
-        setAcceptedSuggestions(prev => new Set([...prev, suggestion.id]));
+          // Mark as accepted
+          setAcceptedSuggestions(prev => new Set([...prev, suggestion.id]));
+        } catch (error) {
+          console.error(`❌ Error creating scene: ${suggestion.title}`, error);
+          throw error; // Re-throw to be caught by outer try-catch
+        } finally {
+          // Remove from creating set
+          setCreatingSuggestions(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(suggestion.id);
+            return newSet;
+          });
+        }
       }
 
       console.log(`✅ Successfully created ${createdCount} scene cards`);
@@ -362,20 +382,37 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
 
           {suggestions.length === 0 && !isAnalyzing && (
             <Card className="border-dashed">
-              <CardContent className="pt-6 text-center py-12">
-                <Film className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-lg font-medium mb-2">Ready to discover key scenes</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Click "Generate Suggestions" to let AI analyze your story and suggest scene cards
-                </p>
-                <Button 
-                  onClick={() => handleAnalyze(false)} 
-                  disabled={isAnalyzing}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {isAnalyzing ? 'Analyzing...' : 'Generate Suggestions'}
-                </Button>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <Film className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium mb-2">Ready to discover key scenes</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Optionally provide a scene idea, or let AI analyze your story automatically
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-scene-idea">Scene Idea (Optional)</Label>
+                    <Textarea
+                      id="custom-scene-idea"
+                      placeholder="e.g., A confrontation between the protagonist and antagonist in the final battle, or A quiet moment where the hero discovers a crucial clue..."
+                      value={customIdea}
+                      onChange={(e) => setCustomIdea(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  
+                  <Button 
+                    onClick={() => handleAnalyze(false)} 
+                    disabled={isAnalyzing}
+                    className="gap-2 w-full"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isAnalyzing ? 'Analyzing...' : 'Generate Suggestions'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -403,19 +440,26 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
                               checked={isSelected}
                               onCheckedChange={() => toggleSelection(suggestion.id)}
                               onClick={(e) => e.stopPropagation()}
+                              disabled={creatingSuggestions.has(suggestion.id) || isCreating}
                               className="mt-1"
                             />
                           )}
                           <div className="flex-1">
                             <CardTitle className="text-xl mb-2">{suggestion.title}</CardTitle>
-                            <div className="flex flex-wrap gap-2 mb-2">
+                            <div className="flex flex-wrap gap-2 mb-2 items-center">
                               <Badge variant="outline" className="ml-auto">
                                 {Math.round(suggestion.confidence * 100)}% confidence
                               </Badge>
                             </div>
                           </div>
                         </div>
-                        {isAccepted && (
+                        {creatingSuggestions.has(suggestion.id) && (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200 flex-shrink-0">
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Saving...
+                          </Badge>
+                        )}
+                        {isAccepted && !creatingSuggestions.has(suggestion.id) && (
                           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 flex-shrink-0">
                             <Check className="h-3 w-3 mr-1" />
                             Added
@@ -474,15 +518,30 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            {suggestions.length > 0 && (
-              <span>
-                {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} · {selectedSuggestions.size} selected · {acceptedSuggestions.size} accepted
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
+        <div className="space-y-4 pt-4 border-t">
+          {(suggestions.length > 0 || isAnalyzing) && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-scene-idea-bottom" className="text-sm">Scene Idea (Optional)</Label>
+              <Textarea
+                id="custom-scene-idea-bottom"
+                placeholder="e.g., A confrontation between the protagonist and antagonist..."
+                value={customIdea}
+                onChange={(e) => setCustomIdea(e.target.value)}
+                rows={2}
+                className="resize-none text-sm"
+              />
+            </div>
+          )}
+          
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              {suggestions.length > 0 && (
+                <span>
+                  {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} · {selectedSuggestions.size} selected · {acceptedSuggestions.size} accepted
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => handleAnalyze(true)}
@@ -518,6 +577,7 @@ export function AISceneSuggestions({ bookId, onSuggestionAccepted, className }: 
             >
               Done
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
