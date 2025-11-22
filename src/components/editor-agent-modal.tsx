@@ -16,8 +16,32 @@ interface EditorAgentModalProps {
 
 export default function EditorAgentModal({ bookId, open, onOpenChange }: EditorAgentModalProps) {
   const [includePlanningData, setIncludePlanningData] = useState(false)
-  const [grokModel, setGrokModel] = useState<'grok-4-fast-non-reasoning' | 'grok-4-fast-reasoning'>('grok-4-fast-non-reasoning')
+  const [editorModel, setEditorModel] = useState<string>('openai/gpt-4')
   const [clearHistoryTrigger, setClearHistoryTrigger] = useState(0)
+
+  // Load user's preferred editor model from settings when modal opens
+  React.useEffect(() => {
+    if (open) {
+      const loadUserSettings = async () => {
+        try {
+          const response = await fetch('/api/user/settings')
+          if (response.ok) {
+            const data = await response.json()
+            // Use user's preferred editor model if set, otherwise use default
+            if (data.openRouterEditorModel) {
+              setEditorModel(data.openRouterEditorModel)
+              console.log(`✅ Loaded user's preferred editor model: ${data.openRouterEditorModel}`)
+            } else {
+              setEditorModel('openai/gpt-4')
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user settings:', error)
+        }
+      }
+      loadUserSettings()
+    }
+  }, [open])
 
   const handleClearHistory = async () => {
     if (confirm('Clear all chat history? This cannot be undone.')) {
@@ -44,29 +68,13 @@ export default function EditorAgentModal({ bookId, open, onOpenChange }: EditorA
             <div className="flex-1">
               <DialogTitle className="text-2xl">Editor Agent</DialogTitle>
               <DialogDescription>
-                AI-powered chapter editing using Grok 4 Fast. Chat with the AI to edit your chapters, 
-                and review changes before accepting them.
+                AI-powered chapter editing. Chat with the AI to edit your chapters, 
+                and review changes before accepting them. Configure your model in Settings.
               </DialogDescription>
             </div>
             
             {/* Controls */}
             <div className="flex items-center gap-4 ml-4">
-              {/* Model Selector */}
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="model-select" className="text-sm whitespace-nowrap">
-                  Model:
-                </Label>
-                <select
-                  id="model-select"
-                  value={grokModel}
-                  onChange={(e) => setGrokModel(e.target.value as any)}
-                  className="text-sm border rounded px-2 py-1 bg-background"
-                >
-                  <option value="grok-4-fast-non-reasoning">Fast (No Reasoning)</option>
-                  <option value="grok-4-fast-reasoning">Fast (With Reasoning)</option>
-                </select>
-              </div>
-              
               {/* Planning Data Toggle */}
               <div className="flex items-center space-x-2">
                 <Switch
@@ -102,7 +110,7 @@ export default function EditorAgentModal({ bookId, open, onOpenChange }: EditorA
             key={clearHistoryTrigger} 
             bookId={bookId} 
             includePlanningData={includePlanningData} 
-            grokModel={grokModel} 
+            editorModel={editorModel} 
           />
         </div>
       </DialogContent>

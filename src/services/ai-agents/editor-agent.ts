@@ -4,7 +4,7 @@
  * Intelligently loads chapters and generates structured edits
  */
 
-import { grokService } from '@/services/grok.service';
+import { llmService } from '@/services/llm.service';
 import { prisma } from '@/lib/db';
 import { Chapter } from '@prisma/client';
 import * as Diff from 'diff';
@@ -52,6 +52,12 @@ export class EditorAgent {
       select: { userId: true },
     });
     const userId = book?.userId;
+    
+    if (userId) {
+      console.log(`🔑 [Editor Agent] Using user's API key for chapter analysis (userId: ${userId})`);
+    } else {
+      console.warn(`⚠️ [Editor Agent] No userId found for book ${bookId}, will use default API key`);
+    }
 
     // Fetch all chapters with basic info
     const allChapters = await prisma.chapter.findMany({
@@ -100,12 +106,13 @@ RULES:
 - Always provide clear reasoning`;
 
     try {
-      const response = await grokService.chatCompletion([
+      const response = await llmService.chatCompletion([
         { role: 'user', content: analysisPrompt }
       ], {
-        // Don't set temperature - let Grok service use user's default temperature
-        max_tokens: 2000, // Increased from 500 - chapter analysis can be more detailed (Grok 4 Fast: 2M context)
-        userId, // Pass userId to use user's OpenRouter API key and temperature
+        max_tokens: 2000,
+        userId,
+        taskType: 'default',
+        agentType: 'editor',
       });
 
       const analysis = this.parseJSON(response.content);
@@ -162,7 +169,7 @@ RULES:
     conversationHistory: ConversationMessage[],
     loadedChapters?: Chapter[],
     includePlanningData: boolean = false,
-    grokModel: string = 'grok-4-fast-non-reasoning'
+    editorModel: string = 'openai/gpt-4'
   ): Promise<EditResponse> {
     // Get book metadata and userId first
     const book = await prisma.book.findUnique({
@@ -176,6 +183,12 @@ RULES:
       },
     });
     const userId = book?.userId;
+    
+    if (userId) {
+      console.log(`🔑 [Editor Agent] Using user's API key for edit request (userId: ${userId})`);
+    } else {
+      console.warn(`⚠️ [Editor Agent] No userId found for book ${bookId}, will use default API key`);
+    }
 
     // Fetch planning data if requested (do this BEFORE checking for chapters)
     let planningContext = '';
@@ -308,14 +321,16 @@ IMPORTANT:
 - Make as FEW changes as possible while addressing the request`;
 
     try {
-      console.log(`🤖 Using Grok model: ${grokModel}`);
-      const response = await grokService.chatCompletion([
+      console.log(`🤖 Using editor model: ${editorModel}`);
+      // Don't specify max_tokens - let LLM service calculate optimal value based on model's context_length
+      const response = await llmService.chatCompletion([
         { role: 'user', content: fullPrompt }
       ], {
-        // Don't set temperature - let Grok service use user's default temperature
-        max_tokens: 16000, // Increased for large responses
-        model: grokModel,
-        userId, // Pass userId to use user's OpenRouter API key and temperature
+        model: editorModel,
+        // max_tokens will be calculated by LLM service based on model's context_length
+        userId,
+        taskType: 'default',
+        agentType: 'editor',
       });
 
       console.log(`📦 Response size: ${response.content.length} characters`);
@@ -327,8 +342,16 @@ IMPORTANT:
         chaptersLoaded: chapters.map(ch => ({ id: ch.id, title: ch.title })),
       };
     } catch (error) {
-      console.error('Error processing edit request:', error);
-      throw new Error('Failed to process editing request. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Error processing edit request:', errorMessage);
+      console.error('❌ Full error:', error);
+      
+      // Provide more specific error messages
+      if (errorMessage.includes('OpenRouter')) {
+        throw new Error(`OpenRouter error: ${errorMessage}. Please check your API key and model selection in settings.`);
+      }
+      
+      throw new Error(`Failed to process editing request: ${errorMessage}`);
     }
   }
 
@@ -341,7 +364,7 @@ IMPORTANT:
     conversationHistory: ConversationMessage[],
     loadedChapters: Chapter[] | undefined,
     includePlanningData: boolean,
-    grokModel: string,
+    editorModel: string,
     onChunk: (chunk: string) => void
   ): Promise<void> {
     // Build the same context as non-streaming
@@ -356,6 +379,12 @@ IMPORTANT:
       },
     });
     const userId = book?.userId;
+    
+    if (userId) {
+      console.log(`🔑 [Editor Agent] Using user's API key for streaming edit request (userId: ${userId})`);
+    } else {
+      console.warn(`⚠️ [Editor Agent] No userId found for book ${bookId}, will use default API key`);
+    }
 
     let planningContext = '';
     if (includePlanningData) {
@@ -423,18 +452,27 @@ Please analyze the planning data and provide a helpful response. If you have sug
 
     const fullPrompt = `${editingPrompt}\n\n${bookContext}\n\nUSER REQUEST: "${userRequest}"\n\nCONVERSATION HISTORY:\n${conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n\n')}\n${instructions}`;
 
-    console.log(`🤖 Streaming with Grok model: ${grokModel}`);
+    console.log(`🤖 Streaming with editor model: ${editorModel}`);
     
-    await grokService.streamChatCompletion(
+    // Use LLMService for streaming - for now, use non-streaming and call onChunk with full response
+    // TODO: Add streaming support to LLMService/OpenRouterService
+    // Don't specify max_tokens - let LLM service calculate optimal value based on model's context_length
+    const response = await llmService.chatCompletion(
       [{ role: 'user', content: fullPrompt }],
-      onChunk,
       {
-        // Don't set temperature - let Grok service use user's default temperature
-        max_tokens: 16000,
-        model: grokModel,
-        userId, // Pass userId to use user's OpenRouter API key and temperature
+        model: editorModel,
+        // max_tokens will be calculated by LLM service based on model's context_length
+        userId,
+        taskType: 'default',
+        agentType: 'editor',
       }
     );
+    
+    // Simulate streaming by calling onChunk with chunks of the response
+    const chunkSize = 50;
+    for (let i = 0; i < response.content.length; i += chunkSize) {
+      onChunk(response.content.slice(i, i + chunkSize));
+    }
   }
 
   /**

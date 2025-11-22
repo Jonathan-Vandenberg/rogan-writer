@@ -1,0 +1,5 @@
+-- Add EPUB, MOBI, and KINDLE formats to ExportFormat enum
+ALTER TYPE "ExportFormat" ADD VALUE IF NOT EXISTS 'EPUB';
+ALTER TYPE "ExportFormat" ADD VALUE IF NOT EXISTS 'MOBI';
+ALTER TYPE "ExportFormat" ADD VALUE IF NOT EXISTS 'KINDLE';
+

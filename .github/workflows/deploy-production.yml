@@ -89,6 +89,10 @@ jobs:
         cp tsconfig.json deploy/ || true
         cp components.json deploy/ || true
         
+        # Copy scripts directory for migration fixes
+        mkdir -p deploy/scripts
+        cp scripts/add-missing-columns.mjs deploy/scripts/ || true
+        
         # Set correct permissions
         chmod -R 755 deploy
 
@@ -129,6 +133,12 @@ jobs:
           # Run database migrations safely
           npx prisma migrate deploy
           npx prisma generate
+          
+          # Ensure all columns exist (handles case where migrations were marked applied but didn't run)
+          if [ -f scripts/add-missing-columns.mjs ]; then
+            echo "🔧 Running add-missing-columns script to ensure all columns exist..."
+            node scripts/add-missing-columns.mjs || echo "⚠️ Script failed, but continuing..."
+          fi
           
           # Stop existing PM2 process if running
           pm2 stop rogan-writer || true

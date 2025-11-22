@@ -21,12 +21,19 @@ export async function GET() {
       select: {
         openRouterApiKey: true,
         openRouterEmbeddingModel: true,
+        openRouterEditorModel: true,
         openRouterResearchModel: true,
         openRouterSuggestionsModel: true,
-        openRouterDefaultModel: true,
-        defaultModelTemperature: true,
+        openRouterChatModel: true,
+        openRouterTTSModel: true,
+        openRouterImageModel: true,
+        editorModelTemperature: true,
         researchModelTemperature: true,
         suggestionsModelTemperature: true,
+        chatModelTemperature: true,
+        ttsVoice: true,
+        ttsModel: true,
+        modelPreferences: true,
       },
     })
 
@@ -37,13 +44,20 @@ export async function GET() {
     return NextResponse.json({
       openRouterApiKey: user.openRouterApiKey ? maskApiKey(decrypt(user.openRouterApiKey)) : null,
       openRouterEmbeddingModel: user.openRouterEmbeddingModel,
+      openRouterEditorModel: user.openRouterEditorModel,
       openRouterResearchModel: user.openRouterResearchModel,
       openRouterSuggestionsModel: user.openRouterSuggestionsModel,
-      openRouterDefaultModel: user.openRouterDefaultModel,
+      openRouterChatModel: user.openRouterChatModel,
+      openRouterTTSModel: user.openRouterTTSModel,
+      openRouterImageModel: user.openRouterImageModel,
       isConfigured: !!user.openRouterApiKey,
-      defaultModelTemperature: user.defaultModelTemperature ?? 0.7,
+      editorModelTemperature: user.editorModelTemperature ?? 0.7,
       researchModelTemperature: user.researchModelTemperature ?? 0.3,
       suggestionsModelTemperature: user.suggestionsModelTemperature ?? 0.8,
+      chatModelTemperature: user.chatModelTemperature ?? 0.7,
+      ttsVoice: user.ttsVoice ?? 'alloy',
+      ttsModel: user.ttsModel ?? 'tts-1',
+      modelPreferences: user.modelPreferences || {},
     })
   } catch (error) {
     console.error('Error fetching user settings:', error)
@@ -67,12 +81,19 @@ export async function PUT(request: NextRequest) {
     const {
       openRouterApiKey,
       openRouterEmbeddingModel,
+      openRouterEditorModel,
       openRouterResearchModel,
       openRouterSuggestionsModel,
-      openRouterDefaultModel,
-      defaultModelTemperature,
+      openRouterChatModel,
+      openRouterTTSModel,
+      openRouterImageModel,
+      editorModelTemperature,
       researchModelTemperature,
       suggestionsModelTemperature,
+      chatModelTemperature,
+      ttsVoice,
+      ttsModel,
+      modelPreferences,
     } = body
 
     // Prepare update data
@@ -93,25 +114,50 @@ export async function PUT(request: NextRequest) {
     if (openRouterEmbeddingModel !== undefined) {
       updateData.openRouterEmbeddingModel = openRouterEmbeddingModel || null
     }
+    if (openRouterEditorModel !== undefined) {
+      updateData.openRouterEditorModel = openRouterEditorModel || null
+    }
     if (openRouterResearchModel !== undefined) {
       updateData.openRouterResearchModel = openRouterResearchModel || null
     }
     if (openRouterSuggestionsModel !== undefined) {
       updateData.openRouterSuggestionsModel = openRouterSuggestionsModel || null
     }
-    if (openRouterDefaultModel !== undefined) {
-      updateData.openRouterDefaultModel = openRouterDefaultModel || null
+    if (openRouterChatModel !== undefined) {
+      updateData.openRouterChatModel = openRouterChatModel || null
+    }
+    if (openRouterTTSModel !== undefined) {
+      updateData.openRouterTTSModel = openRouterTTSModel || null
+    }
+    if (openRouterImageModel !== undefined) {
+      updateData.openRouterImageModel = openRouterImageModel || null
     }
 
     // Update temperature settings
-    if (defaultModelTemperature !== undefined) {
-      updateData.defaultModelTemperature = defaultModelTemperature
+    if (editorModelTemperature !== undefined) {
+      updateData.editorModelTemperature = editorModelTemperature
     }
     if (researchModelTemperature !== undefined) {
       updateData.researchModelTemperature = researchModelTemperature
     }
     if (suggestionsModelTemperature !== undefined) {
       updateData.suggestionsModelTemperature = suggestionsModelTemperature
+    }
+    if (chatModelTemperature !== undefined) {
+      updateData.chatModelTemperature = chatModelTemperature
+    }
+
+    // Update TTS settings
+    if (ttsVoice !== undefined) {
+      updateData.ttsVoice = ttsVoice
+    }
+    if (ttsModel !== undefined) {
+      updateData.ttsModel = ttsModel
+    }
+
+    // Update model preferences
+    if (modelPreferences !== undefined) {
+      updateData.modelPreferences = modelPreferences
     }
 
     const user = await prisma.user.update({
@@ -120,25 +166,39 @@ export async function PUT(request: NextRequest) {
       select: {
         openRouterApiKey: true,
         openRouterEmbeddingModel: true,
+        openRouterEditorModel: true,
         openRouterResearchModel: true,
         openRouterSuggestionsModel: true,
-        openRouterDefaultModel: true,
-        defaultModelTemperature: true,
+        openRouterChatModel: true,
+        openRouterTTSModel: true,
+        openRouterImageModel: true,
+        editorModelTemperature: true,
         researchModelTemperature: true,
         suggestionsModelTemperature: true,
+        chatModelTemperature: true,
+        ttsVoice: true,
+        ttsModel: true,
+        modelPreferences: true,
       },
     })
 
     return NextResponse.json({
       openRouterApiKey: user.openRouterApiKey ? maskApiKey(decrypt(user.openRouterApiKey)) : null,
       openRouterEmbeddingModel: user.openRouterEmbeddingModel,
+      openRouterEditorModel: user.openRouterEditorModel,
       openRouterResearchModel: user.openRouterResearchModel,
       openRouterSuggestionsModel: user.openRouterSuggestionsModel,
-      openRouterDefaultModel: user.openRouterDefaultModel,
+      openRouterChatModel: user.openRouterChatModel,
+      openRouterTTSModel: user.openRouterTTSModel,
+      openRouterImageModel: user.openRouterImageModel,
       isConfigured: !!user.openRouterApiKey,
-      defaultModelTemperature: user.defaultModelTemperature ?? 0.7,
+      editorModelTemperature: user.editorModelTemperature ?? 0.7,
       researchModelTemperature: user.researchModelTemperature ?? 0.3,
       suggestionsModelTemperature: user.suggestionsModelTemperature ?? 0.8,
+      chatModelTemperature: user.chatModelTemperature ?? 0.7,
+      ttsVoice: user.ttsVoice ?? 'alloy',
+      ttsModel: user.ttsModel ?? 'tts-1',
+      modelPreferences: user.modelPreferences || {},
     })
   } catch (error) {
     console.error('Error updating user settings:', error)

@@ -60,6 +60,8 @@ interface OpenRouterModel {
     prompt: string;
     completion: string;
   };
+  // Output modalities for image generation support
+  output_modalities?: string[];
 }
 
 export class OpenRouterService {
@@ -109,7 +111,19 @@ export class OpenRouterService {
       }
 
       const data = await response.json();
-      return data.data || [];
+      const models = data.data || [];
+      
+      // Log model structure for debugging
+      if (models.length > 0) {
+        console.log(`📋 Sample model structure:`, {
+          id: models[0].id,
+          name: models[0].name,
+          output_modalities: models[0].output_modalities,
+          architecture: models[0].architecture,
+        });
+      }
+      
+      return models;
     } catch (error) {
       console.error('Error fetching OpenRouter models:', error);
       throw new Error('Failed to fetch available models from OpenRouter');
@@ -117,9 +131,59 @@ export class OpenRouterService {
   }
 
   /**
+   * Get a specific model's information including context_length
+   */
+  async getModelInfo(modelId: string): Promise<OpenRouterModel | null> {
+    try {
+      const models = await this.getAvailableModels();
+      return models.find(m => m.id === modelId) || null;
+    } catch (error) {
+      console.error('Error fetching model info:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract embedding dimensions from model description or ID
+   * Returns null if dimensions cannot be determined
+   */
+  private getEmbeddingDimensions(model: OpenRouterModel): number | null {
+    // Check description first (e.g., "1536 dimensions" or "3072 dimensions")
+    const desc = model.description?.toLowerCase() || '';
+    const descMatch = desc.match(/(\d+)\s*dimensions?/);
+    if (descMatch) {
+      return parseInt(descMatch[1], 10);
+    }
+    
+    // Check model ID for known patterns
+    const id = model.id?.toLowerCase() || '';
+    
+    // Known 1536-dimension models
+    if (
+      id.includes('ada-002') ||
+      id.includes('text-embedding-3-small') ||
+      id.includes('embedding-3-small')
+    ) {
+      return 1536;
+    }
+    
+    // Known 3072-dimension models (we filter these out)
+    if (
+      id.includes('text-embedding-3-large') ||
+      id.includes('embedding-3-large')
+    ) {
+      return 3072;
+    }
+    
+    // Default to 1536 for unknown embedding models (safer assumption)
+    // But return null to be explicit that we couldn't determine
+    return null;
+  }
+
+  /**
    * Get embedding models specifically
    * OpenRouter supports OpenAI embedding models through their API
-   * Always include common OpenAI embedding models as they work through OpenRouter
+   * Only includes models with 1536 dimensions (required for our vector store)
    */
   async getEmbeddingModels(): Promise<OpenRouterModel[]> {
     const allModels = await this.getAvailableModels();
@@ -136,7 +200,7 @@ export class OpenRouterService {
       );
     });
     
-    // Always include common OpenAI embedding models (they work through OpenRouter)
+    // Always include common OpenAI embedding models with 1536 dimensions (they work through OpenRouter)
     const defaultEmbeddingModels: OpenRouterModel[] = [
       {
         id: 'openai/text-embedding-ada-002',
@@ -150,12 +214,7 @@ export class OpenRouterService {
         description: 'OpenAI\'s newer small embedding model (1536 dimensions)',
         context_length: 8191,
       },
-      {
-        id: 'openai/text-embedding-3-large',
-        name: 'OpenAI Text Embedding 3 Large',
-        description: 'OpenAI\'s newer large embedding model (3072 dimensions)',
-        context_length: 8191,
-      },
+      // Note: text-embedding-3-large (3072 dimensions) is excluded as we only support 1536 dimensions
     ];
     
     // Combine found models with defaults, removing duplicates
@@ -170,7 +229,15 @@ export class OpenRouterService {
       }
     }
     
-    return allEmbeddingModels;
+    // Filter to only include models with 1536 dimensions
+    const filteredModels = allEmbeddingModels.filter(model => {
+      const dimensions = this.getEmbeddingDimensions(model);
+      // Include models with 1536 dimensions, or unknown dimensions (assume 1536 for safety)
+      // Explicitly exclude 3072-dimension models
+      return dimensions === null || dimensions === 1536;
+    });
+    
+    return filteredModels;
   }
 
   /**
@@ -193,9 +260,58 @@ export class OpenRouterService {
         return false;
       }
       
+      // Exclude TTS models
+      if (
+        id.includes('tts') ||
+        id.includes('text-to-speech') ||
+        modality === 'audio' ||
+        id.includes('speech')
+      ) {
+        return false;
+      }
+      
       // Include all other models (most models are chat/completion models)
       return true;
     });
+  }
+
+  /**
+   * Get TTS (text-to-speech) models
+   * Filters for models that support text-to-speech/audio generation
+   */
+  async getTTSModels(): Promise<OpenRouterModel[]> {
+    const allModels = await this.getAvailableModels();
+    return allModels.filter(model => {
+      const id = model.id?.toLowerCase() || '';
+      const modality = model.architecture?.modality?.toLowerCase() || '';
+      const name = model.name?.toLowerCase() || '';
+      
+      // Include TTS models
+      if (
+        id.includes('tts') ||
+        id.includes('text-to-speech') ||
+        modality === 'audio' ||
+        id.includes('speech') ||
+        name.includes('tts') ||
+        name.includes('text-to-speech')
+      ) {
+        return true;
+      }
+      
+      return false;
+    });
+  }
+
+  /**
+   * Get image generation models
+   * Returns all available models from OpenRouter (no filtering)
+   */
+  async getImageModels(): Promise<OpenRouterModel[]> {
+    const allModels = await this.getAvailableModels();
+    
+    console.log(`📸 Returning all ${allModels.length} models for image generation selection`);
+    
+    return allModels;
   }
 
   /**

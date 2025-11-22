@@ -128,7 +128,7 @@ export function BookSelector() {
           <Button
             variant="outline"
             role="combobox"
-            className="w-[200px] justify-between"
+            className="w-[300px] justify-between"
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <BookOpen className="h-4 w-4 shrink-0" />
@@ -137,7 +137,7 @@ export function BookSelector() {
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[200px]" align="start">
+        <DropdownMenuContent className="w-[300px]" align="start">
           <DropdownMenuLabel>Your Books</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {books.map((book: Book) => (

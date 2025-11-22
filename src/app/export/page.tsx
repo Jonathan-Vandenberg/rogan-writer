@@ -20,7 +20,9 @@ import {
   Upload,
   Eye,
   Trash2,
-  Volume2
+  Volume2,
+  Mail,
+  Tablet
 } from "lucide-react"
 import { useSelectedBook } from "@/contexts/selected-book-context"
 import { cn } from "@/lib/utils"
@@ -61,6 +63,9 @@ interface ExportStats {
     pdf: number
     txt: number
     html: number
+    epub: number
+    mobi: number
+    kindle: number
   }
   recentExports: ExportRequest[]
   successRate: number
@@ -91,6 +96,8 @@ export default function ExportPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [downloadingChapter, setDownloadingChapter] = React.useState<string | null>(null)
   const [downloadingComplete, setDownloadingComplete] = React.useState(false)
+  const [kindleEmail, setKindleEmail] = React.useState("")
+  const [sendingToKindle, setSendingToKindle] = React.useState(false)
 
   // Fetch export stats and recent exports
   React.useEffect(() => {
@@ -179,14 +186,22 @@ export default function ExportPage() {
     }
   }
 
-  const handleExport = async (format: string) => {
+  const handleExport = async (format: string, sendToKindleEmail?: string) => {
     if (!selectedBookId) {
       alert('Please select a book to export')
       return
     }
 
-    console.log('Starting export:', { format, bookId: selectedBookId, settings: exportSettings })
+    if (format === 'KINDLE' && !sendToKindleEmail) {
+      alert('Please enter your Kindle email address')
+      return
+    }
+
+    console.log('Starting export:', { format, bookId: selectedBookId, settings: exportSettings, sendToKindleEmail })
     setIsExporting(true)
+    if (format === 'KINDLE') {
+      setSendingToKindle(true)
+    }
     
     try {
       // Create export request
@@ -198,7 +213,8 @@ export default function ExportPage() {
         body: JSON.stringify({
           bookId: selectedBookId,
           format: format.toUpperCase(),
-          settings: exportSettings
+          settings: exportSettings,
+          kindleEmail: sendToKindleEmail
         }),
       })
 
@@ -215,7 +231,12 @@ export default function ExportPage() {
         if (processResponse.ok) {
           const result = await processResponse.json()
           console.log('Export processing completed:', result)
-          alert(`Export completed! File is ready for download.`)
+          if (format === 'KINDLE') {
+            alert(`Book sent to Kindle! Check your device in a few minutes.`)
+            setKindleEmail("") // Clear email after successful send
+          } else {
+            alert(`Export completed! File is ready for download.`)
+          }
         } else {
           console.error('Processing failed:', processResponse.status, processResponse.statusText)
           alert(`Export created but processing failed. You can retry processing later.`)
@@ -239,6 +260,7 @@ export default function ExportPage() {
       alert('Export failed. Please try again.')
     } finally {
       setIsExporting(false)
+      setSendingToKindle(false)
     }
   }
 
@@ -389,6 +411,9 @@ export default function ExportPage() {
     switch (format.toUpperCase()) {
       case 'PDF': return <FileText className="h-4 w-4 text-blue-600" />
       case 'TXT': return <FileText className="h-4 w-4 text-gray-500" />
+      case 'EPUB': return <Tablet className="h-4 w-4 text-green-600" />
+      case 'MOBI': return <Tablet className="h-4 w-4 text-orange-600" />
+      case 'KINDLE': return <Mail className="h-4 w-4 text-orange-600" />
       case 'MP3': return <Volume2 className="h-4 w-4 text-purple-500" />
       default: return <FileText className="h-4 w-4 text-gray-500" />
     }
@@ -446,7 +471,7 @@ export default function ExportPage() {
                   <FileText className="h-6 w-6 text-blue-600" />
                   <div className="text-left">
                     <div className="font-medium">PDF</div>
-                    <div className="text-sm text-muted-foreground">PDF format</div>
+                    <div className="text-sm text-muted-foreground">PDF format for printing</div>
                   </div>
                 </div>
               </Button>
@@ -465,6 +490,74 @@ export default function ExportPage() {
                   </div>
                 </div>
               </Button>
+
+              <Button
+                onClick={() => handleExport('epub')}
+                disabled={!selectedBookId || isExporting}
+                className="justify-start h-auto p-4"
+                variant="outline"
+              >
+                <div className="flex items-center gap-3 w-full">
+                  <Tablet className="h-6 w-6 text-green-600" />
+                  <div className="text-left">
+                    <div className="font-medium">EPUB</div>
+                    <div className="text-sm text-muted-foreground">eBook format for most eReaders</div>
+                  </div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => handleExport('mobi')}
+                disabled={!selectedBookId || isExporting}
+                className="justify-start h-auto p-4"
+                variant="outline"
+              >
+                <div className="flex items-center gap-3 w-full">
+                  <Tablet className="h-6 w-6 text-orange-600" />
+                  <div className="text-left">
+                    <div className="font-medium">MOBI</div>
+                    <div className="text-sm text-muted-foreground">Kindle format (legacy)</div>
+                  </div>
+                </div>
+              </Button>
+            </div>
+
+            {/* Send to Kindle Section */}
+            <div className="pt-4 border-t space-y-3">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-orange-600" />
+                <Label className="font-semibold">Send to Kindle</Label>
+              </div>
+              <div className="space-y-2">
+                <Input
+                  type="email"
+                  placeholder="yourname@kindle.com"
+                  value={kindleEmail}
+                  onChange={(e) => setKindleEmail(e.target.value)}
+                  disabled={!selectedBookId || isExporting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter your Kindle email address. Find it in your Amazon account under "Manage Your Content and Devices" → "Preferences" → "Personal Document Settings".
+                </p>
+                <Button
+                  onClick={() => handleExport('kindle', kindleEmail)}
+                  disabled={!selectedBookId || !kindleEmail || isExporting || sendingToKindle}
+                  className="w-full"
+                  variant="default"
+                >
+                  {sendingToKindle ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Sending to Kindle...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Send to Kindle
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

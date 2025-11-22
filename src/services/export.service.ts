@@ -130,7 +130,8 @@ export class ExportService {
     userId: string,
     bookId: string,
     format: ExportFormat,
-    settings?: any
+    settings?: any,
+    kindleEmail?: string
   ): Promise<Export> {
     // Get book to generate filename
     const book = await prisma.book.findUnique({
@@ -144,14 +145,23 @@ export class ExportService {
 
     // Generate filename using book title only
     const sanitizedTitle = book.title.replace(/[^a-z0-9\s\-_]/gi, '').replace(/\s+/g, '_')
-    const fileName = `${sanitizedTitle}.${format.toLowerCase()}`
+    
+    // For KINDLE format, use MOBI extension (Kindle accepts MOBI format)
+    const fileExtension = format === 'KINDLE' ? 'mobi' : format.toLowerCase()
+    const fileName = `${sanitizedTitle}.${fileExtension}`
+
+    // Store kindleEmail in settings if provided
+    const exportSettings = {
+      ...settings,
+      ...(kindleEmail && { kindleEmail })
+    }
 
     return await this.createExport({
       format,
       fileName,
       userId,
       bookId,
-      settings
+      settings: exportSettings
     })
   }
 
@@ -163,10 +173,13 @@ export class ExportService {
       prisma.export.count({ where: { userId, status: 'FAILED' } })
     ])
 
-    const [pdf, txt, html] = await Promise.all([
+    const [pdf, txt, html, epub, mobi, kindle] = await Promise.all([
       prisma.export.count({ where: { userId, format: 'PDF' } }),
       prisma.export.count({ where: { userId, format: 'TXT' } }),
-      prisma.export.count({ where: { userId, format: 'HTML' } })
+      prisma.export.count({ where: { userId, format: 'HTML' } }),
+      prisma.export.count({ where: { userId, format: 'EPUB' } }),
+      prisma.export.count({ where: { userId, format: 'MOBI' } }),
+      prisma.export.count({ where: { userId, format: 'KINDLE' } })
     ])
 
     const recentExports = await prisma.export.findMany({
@@ -190,7 +203,10 @@ export class ExportService {
       byFormat: {
         pdf,
         txt,
-        html
+        html,
+        epub,
+        mobi,
+        kindle
       },
       recentExports: recentExports.map(exp => ({
         id: exp.id,

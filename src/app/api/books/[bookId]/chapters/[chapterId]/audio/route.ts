@@ -78,8 +78,17 @@ export async function POST(
       const estimatedCost = openaiTTSService.estimateCost(chapter.content.length);
       console.log(`💰 Estimated cost: $${estimatedCost.toFixed(4)}`);
 
-      // Map speakerName to OpenAI voice (default to 'alloy' if not recognized)
-      // Available voices: 'alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'
+      // Get user's TTS preferences from settings
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          ttsVoice: true,
+          openRouterTTSModel: true,
+          ttsModel: true, // Keep for backward compatibility
+        },
+      })
+
+      // Use user's preferred voice, or fall back to chapter's speakerName, or default to 'alloy'
       const voiceMap: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'> = {
         'alloy': 'alloy',
         'echo': 'echo',
@@ -96,18 +105,29 @@ export async function POST(
         'frank': 'fable',
       }
       
-      const selectedVoice = chapter.speakerName 
-        ? (voiceMap[chapter.speakerName.toLowerCase()] || 'alloy')
-        : 'alloy'
+      // Priority: user preference > chapter speakerName > default
+      const selectedVoice = user?.ttsVoice 
+        ? (voiceMap[user.ttsVoice.toLowerCase()] || 'alloy')
+        : chapter.speakerName 
+          ? (voiceMap[chapter.speakerName.toLowerCase()] || 'alloy')
+          : 'alloy'
       
-      console.log(`🎤 Using voice: ${selectedVoice} (from speakerName: ${chapter.speakerName || 'default'})`)
+      // Use user's preferred TTS model (openRouterTTSModel takes priority, fallback to ttsModel for backward compatibility)
+      const userTTSModel = user?.openRouterTTSModel || user?.ttsModel || 'tts-1'
+      // Extract model name if it's in format like "openai/tts-1" -> "tts-1"
+      const selectedModel = (userTTSModel.includes('/') 
+        ? userTTSModel.split('/').pop()?.toLowerCase() || 'tts-1'
+        : userTTSModel.toLowerCase()) as 'tts-1' | 'tts-1-hd'
+      
+      console.log(`🎤 Using voice: ${selectedVoice} (from ${user?.ttsVoice ? 'user preference' : chapter.speakerName ? 'chapter speakerName' : 'default'})`)
+      console.log(`🎙️  Using TTS model: ${selectedModel} (from ${userTTSModel ? `user preference: ${userTTSModel}` : 'default'})`)
 
       // Generate audio using OpenAI TTS with automatic chunking
       // Pass userId so it can use user's OpenRouter API key if configured
       const audioResult = await openaiTTSService.generateAudio({
         text: chapter.content,
         voice: selectedVoice,
-        model: 'tts-1', // Cheapest model
+        model: selectedModel,
         userId: session.user.id, // Pass userId to check for OpenRouter config
       })
 

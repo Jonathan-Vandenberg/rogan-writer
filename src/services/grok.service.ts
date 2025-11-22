@@ -82,11 +82,11 @@ export class GrokService {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
-            defaultModelTemperature: true,
+            chatModelTemperature: true,
           },
         });
-        if (user?.defaultModelTemperature !== null && user?.defaultModelTemperature !== undefined) {
-          temperature = user.defaultModelTemperature;
+        if (user?.chatModelTemperature !== null && user?.chatModelTemperature !== undefined) {
+          temperature = user.chatModelTemperature;
           console.log(`🌡️  [Grok Service] Using user's default temperature: ${temperature}`);
         } else {
           temperature = 0.7; // Default
@@ -232,11 +232,11 @@ export class GrokService {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
-            defaultModelTemperature: true,
+            chatModelTemperature: true,
           },
         });
-        if (user?.defaultModelTemperature !== null && user?.defaultModelTemperature !== undefined) {
-          temperature = user.defaultModelTemperature;
+        if (user?.chatModelTemperature !== null && user?.chatModelTemperature !== undefined) {
+          temperature = user.chatModelTemperature;
           console.log(`🌡️  [Grok Service] Using user's default temperature for streaming: ${temperature}`);
         } else {
           temperature = 0.7; // Default

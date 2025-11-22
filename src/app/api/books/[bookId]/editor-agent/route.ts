@@ -11,7 +11,7 @@ interface EditorChatRequest {
   }>;
   loadedChapterIds?: string[];
   includePlanningData?: boolean;
-  grokModel?: 'grok-4-fast-non-reasoning' | 'grok-4-fast-reasoning';
+  editorModel?: string;
 }
 
 export async function POST(
@@ -27,7 +27,7 @@ export async function POST(
 
     const { bookId } = await params;
     const body: EditorChatRequest = await request.json();
-    const { message, conversationHistory, loadedChapterIds, includePlanningData = false, grokModel = 'grok-4-fast-non-reasoning' } = body;
+    let { message, conversationHistory, loadedChapterIds, includePlanningData = false, editorModel } = body;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -43,6 +43,26 @@ export async function POST(
 
     if (!book) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 });
+    }
+
+    // If no model specified, check user's preferred editor model from settings
+    if (!editorModel) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { openRouterEditorModel: true },
+        });
+        
+        if (user?.openRouterEditorModel) {
+          editorModel = user.openRouterEditorModel;
+          console.log(`✅ Using user's preferred editor model: ${editorModel}`);
+        } else {
+          editorModel = 'openai/gpt-4'; // Default fallback
+        }
+      } catch (error) {
+        console.error('Error loading user editor model preference:', error);
+        editorModel = 'openai/gpt-4'; // Default fallback
+      }
     }
 
     // Load chapters if IDs are provided
@@ -62,8 +82,14 @@ export async function POST(
       console.log('⚠️ No chapter IDs provided or empty array');
     }
 
-    // Use streaming for reasoning model
-    const useStreaming = grokModel === 'grok-4-fast-reasoning';
+    // Ensure editorModel is set (should be set above, but TypeScript needs this)
+    if (!editorModel) {
+      editorModel = 'openai/gpt-4';
+    }
+
+    // Use streaming for models that support it (check if model name suggests streaming support)
+    // For now, use non-streaming by default - can be enhanced later
+    const useStreaming = false; // Can be made configurable per model later
     
     if (useStreaming) {
       // Return streaming response
@@ -78,7 +104,7 @@ export async function POST(
               conversationHistory,
               loadedChapters,
               includePlanningData,
-              grokModel,
+              editorModel,
               (chunk) => {
                 fullContent += chunk;
                 // Send chunk as SSE
@@ -138,7 +164,7 @@ export async function POST(
       conversationHistory,
       loadedChapters,
       includePlanningData,
-      grokModel
+      editorModel
     );
 
     // Generate diffs for edits if present

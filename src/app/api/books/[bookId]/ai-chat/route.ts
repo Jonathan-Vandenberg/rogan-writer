@@ -134,18 +134,19 @@ Instructions:
 
     const userPrompt = message
 
-    // Use local model in development, GPT-3.5-turbo in production for cheaper responses
-    // Pass userId to allow OpenRouter integration
+    // Use user's preferred chat model from settings
+    // Pass userId and agentType to allow OpenRouter integration with user preferences
     const response = await llmService.chatCompletion(
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
       {
-        model: process.env.NODE_ENV === 'development' ? undefined : 'gpt-3.5-turbo', // Use default model in dev
-        temperature: 0.7,
+        // Don't specify model - let LLM service use user's openRouterChatModel preference
         max_tokens: 2000, // Increased for more comprehensive responses
         userId: session.user.id, // Pass userId for OpenRouter config
+        agentType: 'chat', // Use chat agent type to load chat model preferences
+        taskType: 'default', // Use default task type
       }
     )
 

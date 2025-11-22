@@ -16,7 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ORGANIZED_GENRES } from "@/lib/genres"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Settings, Loader2, Trash2 } from "lucide-react"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { cn } from "@/lib/utils"
+import { BookOpen, Settings, Loader2, Trash2, Image as ImageIcon, Upload, Sparkles, Replace } from "lucide-react"
 
 interface Book {
   id: string
@@ -77,8 +79,15 @@ const pageSizes = [
 export function EditBookDialog({ book, open, onOpenChange, onBookUpdated, onBookDeleted }: EditBookDialogProps) {
   const [isUpdating, setIsUpdating] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
+  const [isGeneratingCover, setIsGeneratingCover] = React.useState(false)
+  const [isUploadingCover, setIsUploadingCover] = React.useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
+  const [showDeleteCoverConfirm, setShowDeleteCoverConfirm] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("basic")
+  const [coverTab, setCoverTab] = React.useState<"upload" | "generate">("upload")
+  const [coverPrompt, setCoverPrompt] = React.useState("")
+  const [dragOver, setDragOver] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [formData, setFormData] = React.useState({
     title: book.title,
     description: book.description || "",
@@ -214,6 +223,146 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated, onBook
       setErrors({ submit: 'Failed to update book. Please try again.' })
     } finally {
       setIsUpdating(false)
+    }
+  }
+
+  const handleUploadCover = async (file: File) => {
+    setIsUploadingCover(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`/api/books/${book.id}/upload-cover`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to upload cover image')
+      }
+
+      const data = await response.json()
+      // Update form data with new cover image URL
+      setFormData(prev => ({
+        ...prev,
+        coverImageUrl: data.book.coverImageUrl || "",
+      }))
+      // Notify parent component
+      if (onBookUpdated) {
+        onBookUpdated({
+          ...book,
+          coverImageUrl: data.book.coverImageUrl,
+        })
+      }
+    } catch (error) {
+      console.error('Error uploading cover image:', error)
+      alert(error instanceof Error ? error.message : 'Failed to upload cover image')
+    } finally {
+      setIsUploadingCover(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+
+    const file = e.dataTransfer.files[0]
+    if (file && file.type.startsWith('image/')) {
+      handleUploadCover(file)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+  }
+
+  const handleDeleteCoverClick = () => {
+    setShowDeleteCoverConfirm(true)
+  }
+
+  const handleDeleteCover = async () => {
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coverImageUrl: null }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete cover image')
+      }
+
+      const updatedBook = await response.json()
+      
+      // Update form data
+      setFormData(prev => ({
+        ...prev,
+        coverImageUrl: "",
+      }))
+      
+      // Notify parent component
+      if (onBookUpdated) {
+        onBookUpdated({
+          ...book,
+          coverImageUrl: null,
+        })
+      }
+
+      setShowDeleteCoverConfirm(false)
+    } catch (error) {
+      console.error('Error deleting cover image:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete cover image')
+    }
+  }
+
+  const handleGenerateCover = async () => {
+    setIsGeneratingCover(true)
+    
+    try {
+      const response = await fetch(`/api/books/${book.id}/generate-cover`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: coverPrompt.trim() || null, // Send null if empty to use auto-generation
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Update form data with new cover image URL
+        setFormData(prev => ({
+          ...prev,
+          coverImageUrl: data.book.coverImageUrl || "",
+        }))
+        // Notify parent component
+        if (onBookUpdated) {
+          onBookUpdated({
+            ...book,
+            coverImageUrl: data.book.coverImageUrl,
+          })
+        }
+      } else {
+        const error = await response.json()
+        setErrors({ submit: error.error || 'Failed to generate cover art' })
+      }
+    } catch (error) {
+      console.error('Error generating cover art:', error)
+      setErrors({ submit: 'Failed to generate cover art. Please try again.' })
+    } finally {
+      setIsGeneratingCover(false)
     }
   }
 
@@ -373,15 +522,149 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated, onBook
                 </Select>
               </div>
 
-              {/* <div className="space-y-2">
-                <Label htmlFor="coverImageUrl">Cover Image URL</Label>
-                <Input
-                  id="coverImageUrl"
-                  value={formData.coverImageUrl}
-                  onChange={(e) => handleInputChange("coverImageUrl", e.target.value)}
-                  placeholder="https://example.com/cover.jpg"
-                />
-              </div> */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Label htmlFor="coverImage">Cover Image</Label>
+                  {formData.coverImageUrl && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setCoverTab("upload")}
+                        title="Replace cover image"
+                      >
+                        <Replace className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                        onClick={handleDeleteCoverClick}
+                        title="Delete cover image"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {formData.coverImageUrl && (
+                  <div className="relative w-full aspect-[2/3] rounded-md overflow-hidden border border-border mb-2">
+                    <img
+                      src={formData.coverImageUrl}
+                      alt="Book cover"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                
+                <Tabs value={coverTab} onValueChange={(value) => setCoverTab(value as "upload" | "generate")} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="upload">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload
+                    </TabsTrigger>
+                    <TabsTrigger value="generate">
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate with AI
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="upload" className="space-y-4 mt-4">
+                    <div
+                      className={cn(
+                        "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+                        dragOver 
+                          ? "border-primary bg-primary/5" 
+                          : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                      )}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                    >
+                      <Upload className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-sm font-medium mb-1">Drag and drop an image here</p>
+                      <p className="text-xs text-muted-foreground mb-4">or</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            handleUploadCover(file)
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingCover || isUpdating}
+                      >
+                        {isUploadingCover ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Choose File
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        PNG, JPG, GIF or WEBP (max 10MB)
+                      </p>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="generate" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="coverPrompt" className="text-sm">
+                    Cover Art Prompt (Optional)
+                  </Label>
+                  <Textarea
+                    id="coverPrompt"
+                    value={coverPrompt}
+                    onChange={(e) => setCoverPrompt(e.target.value)}
+                    placeholder="Describe what you want the cover to look like... (Leave empty to auto-generate from title and description)"
+                    rows={4}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {coverPrompt.trim() 
+                      ? "Your custom prompt will be used for image generation."
+                      : "If left empty, a prompt will be automatically generated from your book's title and description."}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGenerateCover}
+                  disabled={isGeneratingCover || isUpdating}
+                  className="w-full"
+                >
+                  {isGeneratingCover ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Cover Art...
+                    </>
+                  ) : (
+                    <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                      Generate Cover Art
+                    </>
+                  )}
+                </Button>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </TabsContent>
 
             <TabsContent value="formatting" className="space-y-4 mt-4">
@@ -638,6 +921,18 @@ export function EditBookDialog({ book, open, onOpenChange, onBookUpdated, onBook
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Cover Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showDeleteCoverConfirm}
+        onOpenChange={setShowDeleteCoverConfirm}
+        title="Delete Cover Image"
+        description="Are you sure you want to remove the cover image? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={handleDeleteCover}
+      />
     </Dialog>
   )
 } 

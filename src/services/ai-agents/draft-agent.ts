@@ -41,8 +41,11 @@ export class DraftAgent extends AIAgent {
   /**
    * Generate a complete book draft from planning content
    */
-  async generateDraft(bookId: string): Promise<BookDraft> {
+  async generateDraft(bookId: string, writingStylePrompt?: string): Promise<BookDraft> {
     console.log('📝 Draft Agent: Starting book draft generation...');
+    if (writingStylePrompt) {
+      console.log('📝 Draft Agent: Using custom writing style instructions');
+    }
     
     // Gather all planning content
     const planningData = await this.gatherPlanningContent(bookId);
@@ -52,7 +55,7 @@ export class DraftAgent extends AIAgent {
     }
 
     // Create chapter outline from plot structure
-    const chapterOutlines = await this.createChapterOutlines(planningData);
+    const chapterOutlines = await this.createChapterOutlines(planningData, writingStylePrompt);
     
     // Generate content for each chapter
     const generatedChapters: GeneratedChapter[] = [];
@@ -64,7 +67,8 @@ export class DraftAgent extends AIAgent {
         outline, 
         index, 
         planningData,
-        generatedChapters // Previous chapters for context
+        generatedChapters, // Previous chapters for context
+        writingStylePrompt
       );
       
       generatedChapters.push(chapter);
@@ -185,7 +189,7 @@ export class DraftAgent extends AIAgent {
     );
   }
 
-  private async createChapterOutlines(planningData: any): Promise<ChapterOutline[]> {
+  private async createChapterOutlines(planningData: any, writingStylePrompt?: string): Promise<ChapterOutline[]> {
     const { book, plotPoints, characters, locations, brainstorming, timeline, sceneCards } = planningData;
     
     console.log('📝 Draft Agent: Using ALL planning content for comprehensive chapter outline creation...');
@@ -247,6 +251,8 @@ export class DraftAgent extends AIAgent {
 
       Aim for 8-15 chapters depending on the content available.
       Ensure each chapter has a clear purpose and narrative arc.
+      
+      ${writingStylePrompt ? `\n\nWRITING STYLE INSTRUCTIONS:\n${writingStylePrompt}\n\nApply these writing style guidelines when creating the chapter structure and descriptions.` : ''}
     `;
 
     try {
@@ -315,7 +321,8 @@ export class DraftAgent extends AIAgent {
     outline: ChapterOutline,
     chapterIndex: number,
     planningData: any,
-    previousChapters: GeneratedChapter[]
+    previousChapters: GeneratedChapter[],
+    writingStylePrompt?: string
   ): Promise<GeneratedChapter> {
     const { book, plotPoints, characters, locations, brainstorming, timeline, sceneCards } = planningData;
     
@@ -356,6 +363,9 @@ export class DraftAgent extends AIAgent {
       ? previousChapters[previousChapters.length - 1]
       : null;
 
+    const chapterNumber = chapterIndex + 1;
+    const previousChapterNumber = previousChapters.length > 0 ? previousChapters.length : null;
+
     const prompt = `
       Write a complete chapter of a ${book?.genre || 'fiction'} novel based on this outline and ALL comprehensive planning content.
 
@@ -364,7 +374,8 @@ export class DraftAgent extends AIAgent {
       Description: ${book?.description || 'No description provided'}
       Genre: ${book?.genre || 'Fiction'}
 
-      CHAPTER OUTLINE:
+      CHAPTER INFORMATION:
+      This is Chapter ${chapterNumber}${previousChapterNumber ? ` (the previous chapter was Chapter ${previousChapterNumber})` : ' (this is the opening chapter)'}.
       Title: ${outline.title}
       Description: ${outline.description}
       Target Length: ${outline.wordTargetRange.min}-${outline.wordTargetRange.max} words
@@ -372,25 +383,46 @@ export class DraftAgent extends AIAgent {
       ALL PLANNING CONTENT (Complete Planning Context):
       ${allPlanningContent}
 
-      ${previousContext ? `PREVIOUS CHAPTER CONTEXT:\nTitle: ${previousContext.title}\nLast 200 characters: ${previousContext.content.slice(-200)}` : 'This is the opening chapter.'}
+      ${previousContext ? `PREVIOUS CHAPTER CONTEXT:\nChapter ${previousChapterNumber}: ${previousContext.title}\nLast 200 characters: ${previousContext.content.slice(-200)}` : 'This is the opening chapter.'}
 
       WRITING GUIDELINES:
       1. **STAY TRUE TO THE BOOK'S CORE CONCEPT**: Ensure the chapter aligns with the book's title, description, and overall premise
       2. **USE ALL PLANNING CONTENT**: The content above includes ALL your planning data - incorporate every relevant element to create the richest possible chapter
       3. Write in third person limited or omniscient perspective
       4. Show don't tell - use action, dialogue, and sensory details
-      5. Include character development and dialogue
-      6. Describe settings vividly using the location information
+      5. Include character development and dialogue or quotes if it is a non-fiction topic
+      6. Describe settings vividly using the location information, but don't overdo it.
       7. Follow the plot points while making the story flow naturally
       8. Maintain consistency with previous chapters and existing content
-      9. End with a hook or transition to the next chapter
+      9. End with a hook or transition to the next chapter unless it is non-fiction, in which case end as facts dictated by the topic.
       10. Write ${outline.wordTargetRange.min}-${outline.wordTargetRange.max} words
+      
+      CRITICAL OUTPUT REQUIREMENTS:
+      - **DO NOT include structural markers** like "HOOK", "PLOT_TURN_1", "MIDPOINT", "PINCH_2", "PLOT_TURN_2", "RESOLUTION" in your chapter content
+      - **DO NOT include word counts** like "(Word count: 2784)" or similar at the end
+      - Write ONLY the narrative prose - no meta-commentary, no structural labels, no word counts
+      - Remember this is Chapter ${chapterNumber} - ensure proper continuity from previous chapters
+      
+      ${writingStylePrompt ? `\n\nCUSTOM WRITING STYLE INSTRUCTIONS:\n${writingStylePrompt}\n\nThese instructions override or supplement the default writing guidelines above. Follow them carefully to match the desired writing style.` : ''}
 
-      Write the complete chapter content below:
+      Write the complete chapter content below (narrative prose only, no structural markers or word counts):
     `;
 
     try {
-      const chapterContent = await this.callOpenAIForText(prompt, book.id);
+      let chapterContent = await this.callOpenAIForText(prompt, book.id);
+      
+      // Clean up any structural markers that might have been included
+      chapterContent = chapterContent
+        // Remove structural markers like **HOOK, PLOT_TURN_1, etc.
+        .replace(/\*\*?(HOOK|PLOT_TURN_1|PLOT_TURN_2|MIDPOINT|PINCH_1|PINCH_2|RESOLUTION)\*\*?:?\s*/gi, '')
+        // Remove word count patterns like "(Word count: 2784)" or "(Word count: 2784 words)"
+        .replace(/\(?\s*Word\s+count\s*:?\s*\d+\s*(words?)?\s*\)?\s*/gi, '')
+        // Remove standalone word count lines
+        .replace(/^Word\s+count\s*:?\s*\d+\s*(words?)?\s*$/gmi, '')
+        // Remove any remaining structural labels at the start
+        .replace(/^(HOOK|PLOT_TURN_1|PLOT_TURN_2|MIDPOINT|PINCH_1|PINCH_2|RESOLUTION):?\s*/gmi, '')
+        // Clean up extra whitespace
+        .trim();
       
       // Count words (rough estimate)
       const wordCount = chapterContent.split(/\s+/).length;

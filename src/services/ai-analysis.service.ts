@@ -150,7 +150,7 @@ export class AIAnalysisService {
   constructor() {
     // Log which LLM service we're using
     const serviceInfo = llmService.getServiceInfo();
-    console.log(`🤖 AIAnalysisService: Using ${serviceInfo.isLocal ? 'Ollama' : 'OpenAI'} (${serviceInfo.defaultModel})`);
+    console.log('🤖 AIAnalysisService: Using', serviceInfo.provider, '(', serviceInfo.defaultModel, ')');
   }
 
   /**

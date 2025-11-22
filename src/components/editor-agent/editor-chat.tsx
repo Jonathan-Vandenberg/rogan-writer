@@ -31,10 +31,10 @@ interface ChatMessage {
 interface EditorChatProps {
   bookId: string;
   includePlanningData: boolean;
-  grokModel: 'grok-4-fast-non-reasoning' | 'grok-4-fast-reasoning';
+  editorModel: string;
 }
 
-export const EditorChat = React.memo(function EditorChat({ bookId, includePlanningData, grokModel }: EditorChatProps) {
+export const EditorChat = React.memo(function EditorChat({ bookId, includePlanningData, editorModel }: EditorChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +43,7 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
   const [bookTitle, setBookTitle] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const editorChanges = useEditorChanges();
+  const editorChanges = useEditorChanges(bookId);
 
   // Fetch book title, load all chapters, and restore chat history on mount
   useEffect(() => {
@@ -149,9 +149,6 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
     setInputMessage('');
     setIsLoading(true);
 
-    // Check if we're using streaming (reasoning model)
-    const useStreaming = grokModel === 'grok-4-fast-reasoning';
-
     try {
       const response = await fetch(`/api/books/${bookId}/editor-agent`, {
         method: 'POST',
@@ -166,14 +163,14 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
           })),
           loadedChapterIds,
           includePlanningData,
-          grokModel,
+          editorModel,
         }),
       });
 
       console.log('📤 Sending to editor-agent:', { 
         loadedChapterIds, 
         includePlanningData, 
-        grokModel,
+        editorModel,
         chapterIdsCount: loadedChapterIds?.length || 0
       });
 
@@ -182,8 +179,9 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
         throw new Error(data.error || 'Failed to get AI response');
       }
 
-      // Handle streaming response
-      if (useStreaming && response.headers.get('content-type')?.includes('text/event-stream')) {
+      // Handle streaming response (currently disabled)
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('text/event-stream')) {
         console.log('📡 Receiving streamed response...');
         
         // Create a message for streaming content
@@ -278,10 +276,10 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
                     if (data.parsedData.edits && data.parsedData.edits.length > 0) {
                       console.log('✏️ Adding edits to review:', data.parsedData.edits.length);
                       editorChanges.addChanges(
-                        data.parsedData.edits.map((edit: any) => ({
-                          id: `edit-${Date.now()}-${edit.chapterId}`,
+                        data.parsedData.edits.map((edit: any, index: number) => ({
+                          id: `edit-${Date.now()}-${index}-${edit.chapterId}-${Math.random().toString(36).substr(2, 9)}`,
                           chapterId: edit.chapterId,
-                          chapterTitle: 'Chapter',
+                          chapterTitle: data.chaptersLoaded?.find((ch: any) => ch.id === edit.chapterId)?.title || 'Chapter',
                           originalContent: edit.originalContent,
                           editedContent: edit.editedContent,
                           diff: edit.diff,
@@ -294,8 +292,8 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
                     if (data.parsedData.newChapters && data.parsedData.newChapters.length > 0) {
                       console.log('➕ Adding new chapters to review:', data.parsedData.newChapters.length);
                       editorChanges.addNewChapters(
-                        data.parsedData.newChapters.map((chapter: any) => ({
-                          id: `new-chapter-${Date.now()}-${chapter.title}`,
+                        data.parsedData.newChapters.map((chapter: any, index: number) => ({
+                          id: `new-chapter-${Date.now()}-${index}-${chapter.title}-${Math.random().toString(36).substr(2, 9)}`,
                           title: chapter.title,
                           content: chapter.content,
                           orderIndex: chapter.orderIndex,
@@ -327,12 +325,21 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
       // Handle non-streaming response
       const data = await response.json();
       console.log('📥 Editor Agent Response:', data);
+      console.log('📥 Response type:', typeof data);
+      console.log('📥 Response keys:', Object.keys(data));
+      console.log('📥 Has message?', !!data.message);
+      console.log('📥 Has error?', !!data.error);
+
+      // Check for error in response
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       // Add AI response to messages
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: data.message || 'Processing your request...',
+        content: data.message || data.content || 'Processing your request...',
         timestamp: new Date(),
         chaptersLoaded: data.chaptersLoaded,
       };
@@ -349,8 +356,8 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
       if (data.edits && data.edits.length > 0) {
         console.log('✏️ Adding edits to review:', data.edits.length);
         editorChanges.addChanges(
-          data.edits.map((edit: any) => ({
-            id: `edit-${Date.now()}-${edit.chapterId}`,
+          data.edits.map((edit: any, index: number) => ({
+            id: `edit-${Date.now()}-${index}-${edit.chapterId}-${Math.random().toString(36).substr(2, 9)}`,
             chapterId: edit.chapterId,
             chapterTitle: data.chaptersLoaded?.find((ch: any) => ch.id === edit.chapterId)?.title || 'Chapter',
             originalContent: edit.originalContent,
@@ -365,8 +372,8 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
       if (data.newChapters && data.newChapters.length > 0) {
         console.log('➕ Adding new chapters to review:', data.newChapters.length);
         editorChanges.addNewChapters(
-          data.newChapters.map((chapter: any) => ({
-            id: `new-chapter-${Date.now()}-${chapter.title}`,
+          data.newChapters.map((chapter: any, index: number) => ({
+            id: `new-chapter-${Date.now()}-${index}-${chapter.title}-${Math.random().toString(36).substr(2, 9)}`,
             title: chapter.title,
             content: chapter.content,
             orderIndex: chapter.orderIndex,
@@ -375,11 +382,21 @@ export const EditorChat = React.memo(function EditorChat({ bookId, includePlanni
         );
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined,
+      });
+      
+      const errorContent = error instanceof Error 
+        ? `Sorry, I encountered an error: ${error.message}` 
+        : 'Sorry, I encountered an error while processing your request. Please try again.';
+      
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Sorry, I encountered an error while processing your request. Please try again.',
+        content: errorContent,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);

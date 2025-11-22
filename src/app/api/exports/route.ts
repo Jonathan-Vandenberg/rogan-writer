@@ -33,7 +33,8 @@ export async function POST(request: Request) {
       session.user.id,
       data.bookId,
       data.format,
-      data.settings
+      data.settings,
+      data.kindleEmail
     )
     
     return NextResponse.json(exportRequest, { status: 201 })

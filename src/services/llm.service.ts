@@ -1,9 +1,8 @@
 /**
  * Unified LLM Service
- * Switches between OpenAI (production), Ollama (development), and OpenRouter (user-configured) based on NODE_ENV and user settings
+ * Uses OpenRouter only - API keys come from user settings
  */
 
-import OpenAI from 'openai';
 import { prisma } from '@/lib/db';
 import { decrypt, maskApiKey } from './encryption.service';
 import { OpenRouterService } from './openrouter.service';
@@ -32,49 +31,16 @@ interface LLMOptions {
   userId?: string; // Optional user ID to check for OpenRouter config
   useOpenRouter?: boolean; // Force use OpenRouter if available
   taskType?: 'default' | 'research' | 'suggestions'; // Task type to determine which temperature to use
+  agentType?: string; // Agent type (e.g., 'editor', 'default', 'research', 'suggestions') to load model preferences
 }
 
 export class LLMService {
-  private openai?: OpenAI;
-  private isLocal: boolean;
-  private localEndpoint: string;
   private defaultModel: string;
 
   constructor() {
-    // Use OpenAI if API key is available, otherwise use local Ollama
-    // Don't create OpenAI client here to avoid build-time errors
-    this.isLocal = !process.env.OPENAI_API_KEY;
-    this.localEndpoint = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-    
-    if (this.isLocal) {
-      // Use local Ollama
-      this.defaultModel = process.env.OLLAMA_MODEL || 'llama3.1:8b';
-      console.log('🦙 LLM Service: Using local Ollama at', this.localEndpoint);
-      console.log('🎯 Default model:', this.defaultModel);
-    } else {
-      // Will use OpenAI, but client will be created lazily when needed
-      this.defaultModel = 'gpt-4';
-      console.log('🤖 LLM Service: Will use OpenAI GPT-4 (lazy initialization)');
-    }
-  }
-
-  /**
-   * Lazy initialization of OpenAI client
-   * Only creates client when actually needed
-   * Prevents creation during build time
-   */
-  private getOpenAIClient(): OpenAI {
-    if (!this.openai) {
-      // During build phase, use a dummy key to prevent errors
-      // The route is force-dynamic so this will never actually be used during build
-      // Handle both undefined and empty string cases
-      const envKey = process.env.OPENAI_API_KEY;
-      const apiKey = (envKey && envKey.trim()) || 'sk-build-dummy-key-not-used-during-build-phase';
-      
-      // Create client - if it's a dummy key, it will fail at runtime, not build time
-      this.openai = new OpenAI({ apiKey });
-    }
-    return this.openai;
+    // OpenRouter is the only LLM service - API keys come from user settings only
+    this.defaultModel = 'gpt-4'; // Default model name for OpenRouter
+    console.log('🌐 LLM Service: Using OpenRouter (API keys from user settings only)');
   }
 
   async chatCompletion(
@@ -86,10 +52,11 @@ export class LLMService {
       temperature: providedTemperature,
       max_tokens = 8000, // Increased from 2000 to leverage larger context windows (GPT-4 Turbo: 128K, Claude 3.5: 200K)
       system_prompt,
-      thinking_mode = false,
+      thinking_mode: providedThinkingMode = false,
       userId,
       useOpenRouter = true,
-      taskType = 'default'
+      taskType = 'default',
+      agentType
     } = options;
 
     // Get user's temperature preference if userId is provided and temperature not explicitly set
@@ -99,35 +66,46 @@ export class LLMService {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
-            defaultModelTemperature: true,
+            editorModelTemperature: true,
             researchModelTemperature: true,
             suggestionsModelTemperature: true,
+            chatModelTemperature: true,
           },
         });
 
         if (user) {
-          switch (taskType) {
+          // Use agentType if provided, otherwise use taskType
+          const effectiveType = agentType || taskType;
+          switch (effectiveType) {
+            case 'editor':
+              temperature = user.editorModelTemperature ?? 0.7;
+              break;
             case 'research':
               temperature = user.researchModelTemperature ?? 0.3;
               break;
             case 'suggestions':
               temperature = user.suggestionsModelTemperature ?? 0.8;
               break;
+            case 'chat':
+              temperature = user.chatModelTemperature ?? 0.7;
+              break;
             case 'default':
             default:
-              temperature = user.defaultModelTemperature ?? 0.7;
+              temperature = user.chatModelTemperature ?? 0.7;
               break;
           }
-          console.log(`🌡️  [LLM Service] Using user's ${taskType} temperature: ${temperature}`);
+          console.log(`🌡️  [LLM Service] Using user's ${effectiveType} temperature: ${temperature}`);
         }
       } catch (error) {
         console.error('Error fetching user temperature settings:', error);
         // Fall back to defaults
-        temperature = taskType === 'research' ? 0.3 : taskType === 'suggestions' ? 0.8 : 0.7;
+        const effectiveType = agentType || taskType;
+        temperature = effectiveType === 'research' ? 0.3 : effectiveType === 'suggestions' ? 0.8 : 0.7;
       }
     } else if (!providedTemperature) {
       // Default temperatures if no userId
-      temperature = taskType === 'research' ? 0.3 : taskType === 'suggestions' ? 0.8 : 0.7;
+      const effectiveType = agentType || taskType;
+      temperature = effectiveType === 'research' ? 0.3 : effectiveType === 'suggestions' ? 0.8 : 0.7;
     }
 
     // Add system prompt if provided and not already present
@@ -138,6 +116,7 @@ export class LLMService {
     // Track if OpenRouter was attempted
     let openRouterAttempted = false;
     let openRouterHadKey = false;
+    let openRouterError: Error | null = null;
 
     // Check for OpenRouter configuration if user ID is provided
     if (useOpenRouter && userId) {
@@ -150,12 +129,15 @@ export class LLMService {
           where: { id: userId },
           select: {
             openRouterApiKey: true,
-            openRouterDefaultModel: true,
+            openRouterEditorModel: true,
             openRouterResearchModel: true,
             openRouterSuggestionsModel: true,
-            defaultModelTemperature: true,
+            openRouterChatModel: true,
+            editorModelTemperature: true,
             researchModelTemperature: true,
             suggestionsModelTemperature: true,
+            chatModelTemperature: true,
+            modelPreferences: true,
           },
         });
 
@@ -171,209 +153,181 @@ export class LLMService {
             
             const openRouterService = new OpenRouterService(apiKey);
             
-            // Use user's preferred model based on task type or the specified model
+            // Use user's preferred model based on agent type or task type
             let selectedModel = model;
             if (!selectedModel) {
-              switch (taskType) {
-                case 'research':
-                  selectedModel = user.openRouterResearchModel || user.openRouterDefaultModel || 'openai/gpt-4';
-                  break;
-                case 'suggestions':
-                  selectedModel = user.openRouterSuggestionsModel || user.openRouterDefaultModel || 'openai/gpt-4';
-                  break;
-                case 'default':
-                default:
-                  selectedModel = user.openRouterDefaultModel || 'openai/gpt-4';
-                  break;
+              // Check agentType first, then fall back to taskType
+              if (agentType === 'editor' && user.openRouterEditorModel) {
+                selectedModel = user.openRouterEditorModel;
+              } else if (agentType === 'chat' && user.openRouterChatModel) {
+                selectedModel = user.openRouterChatModel;
+              } else {
+                switch (taskType) {
+                  case 'research':
+                    selectedModel = user.openRouterResearchModel || 'openai/gpt-4';
+                    break;
+                  case 'suggestions':
+                    selectedModel = user.openRouterSuggestionsModel || 'openai/gpt-4';
+                    break;
+                  case 'default':
+                  default:
+                    // For default taskType, check if we have a chat model, otherwise use editor model
+                    selectedModel = user.openRouterChatModel || user.openRouterEditorModel || 'openai/gpt-4';
+                    break;
+                }
               }
             }
             
-            console.log(`🌐 Using OpenRouter with model: ${selectedModel} (taskType: ${taskType})`);
+            // Map taskType to agentType if agentType not provided (for backward compatibility)
+            const effectiveAgentType = agentType || (taskType === 'research' ? 'research' : taskType === 'suggestions' ? 'suggestions' : 'chat');
             
-            const response = await openRouterService.chatCompletion(messages, {
+            console.log(`🌐 Using OpenRouter with model: ${selectedModel} (taskType: ${taskType}, agentType: ${effectiveAgentType})`);
+            
+            // Load model preferences for this agent and model
+            let thinkingMode = providedThinkingMode;
+            let finalTemperature = temperature;
+            
+            if (effectiveAgentType && selectedModel && user.modelPreferences) {
+              const preferences = user.modelPreferences as Record<string, Record<string, { thinking?: boolean; temperature?: number }>>;
+              const agentPrefs = preferences[effectiveAgentType];
+              if (agentPrefs && agentPrefs[selectedModel]) {
+                const modelPrefs = agentPrefs[selectedModel];
+                if (modelPrefs.thinking !== undefined) {
+                  thinkingMode = modelPrefs.thinking;
+                  console.log(`🧠 [LLM Service] Using saved thinking mode preference: ${thinkingMode} for ${effectiveAgentType}/${selectedModel}`);
+                }
+                if (modelPrefs.temperature !== undefined) {
+                  finalTemperature = modelPrefs.temperature;
+                  console.log(`🌡️  [LLM Service] Using saved temperature preference: ${finalTemperature} for ${effectiveAgentType}/${selectedModel}`);
+                }
+              }
+            }
+            
+            // Get model info to determine optimal max_tokens based on context_length
+            let optimalMaxTokens = max_tokens;
+            try {
+              const modelInfo = await openRouterService.getModelInfo(selectedModel);
+              if (modelInfo?.context_length) {
+                // Use up to 80% of context_length for output tokens, leaving 20% for input
+                // But respect the requested max_tokens if it's explicitly set and lower
+                const calculatedMax = Math.floor(modelInfo.context_length * 0.8);
+                if (max_tokens) {
+                  // If max_tokens is explicitly set, use the minimum of requested and calculated
+                  optimalMaxTokens = Math.min(max_tokens, calculatedMax);
+                } else {
+                  // If max_tokens is not set, use the calculated value based on context_length
+                  optimalMaxTokens = calculatedMax;
+                }
+                console.log(`📊 Model ${selectedModel} has context_length: ${modelInfo.context_length}, using max_tokens: ${optimalMaxTokens}${max_tokens ? ` (requested: ${max_tokens})` : ' (calculated from context_length)'}`);
+              } else if (!max_tokens) {
+                // If we can't get model info and no max_tokens specified, use a safe default
+                optimalMaxTokens = 8000;
+                console.log(`⚠️ Could not get model info for ${selectedModel}, using default max_tokens: ${optimalMaxTokens}`);
+              }
+            } catch (error) {
+              console.warn(`Could not fetch model info for ${selectedModel}, using ${max_tokens || 'default'} max_tokens:`, error);
+              if (!max_tokens) {
+                optimalMaxTokens = 8000; // Fallback default
+              }
+            }
+            
+            // Build request options
+            const requestOptions: any = {
               model: selectedModel,
-              temperature,
-              max_tokens,
-            });
+              temperature: finalTemperature,
+              max_tokens: optimalMaxTokens,
+            };
+            
+            // Add thinking mode if supported and enabled
+            // Note: OpenRouter may support this via model variants or parameters
+            // For now, we'll pass it as a note in the system prompt if thinking mode is enabled
+            if (thinkingMode) {
+              // Some models support thinking mode via model name suffix or parameters
+              // Check if model name suggests thinking support
+              const modelLower = selectedModel.toLowerCase();
+              if (modelLower.includes('reasoning') || modelLower.includes('thinking') || modelLower.includes('grok')) {
+                console.log(`🧠 [LLM Service] Thinking mode enabled for model: ${selectedModel}`);
+                // For Grok models, thinking mode might be handled via model selection
+                // For other models, we might need to add it to the system prompt
+                if (!messages.find(m => m.role === 'system' && m.content.includes('thinking'))) {
+                  const thinkingPrompt = 'Use deep reasoning and thinking mode. Show your thought process when solving complex problems.';
+                  if (system_prompt) {
+                    messages = [{ role: 'system', content: `${system_prompt}\n\n${thinkingPrompt}` }, ...messages.filter(m => m.role !== 'system')];
+                  } else {
+                    messages = [{ role: 'system', content: thinkingPrompt }, ...messages];
+                  }
+                }
+              }
+            }
+            
+            // Log comprehensive configuration before making the API call
+            const preferences = user.modelPreferences as Record<string, Record<string, { thinking?: boolean; temperature?: number }>> | null;
+            const hasUserPrefs = effectiveAgentType && selectedModel && preferences?.[effectiveAgentType]?.[selectedModel];
+            const configSource = hasUserPrefs 
+              ? 'user preferences' 
+              : providedTemperature !== undefined 
+                ? 'explicit parameter' 
+                : 'default';
+            
+            console.log(`\n📋 [LLM Service] Configuration Summary:`);
+            console.log(`   Model: ${selectedModel}`);
+            console.log(`   Agent Type: ${effectiveAgentType}`);
+            console.log(`   Task Type: ${taskType}`);
+            console.log(`   Temperature: ${finalTemperature} (source: ${configSource})`);
+            console.log(`   Thinking Mode: ${thinkingMode} (${thinkingMode ? 'enabled' : 'disabled'})`);
+            console.log(`   Max Tokens: ${optimalMaxTokens}${max_tokens ? ` (requested: ${max_tokens})` : ' (calculated)'}`);
+            console.log(`   System Prompt: ${system_prompt ? 'yes' : 'no'}`);
+            console.log(`   Message Count: ${messages.length}`);
+            if (hasUserPrefs) {
+              const prefs = preferences![effectiveAgentType][selectedModel];
+              console.log(`   User Preferences Applied:`, {
+                thinking: prefs.thinking,
+                temperature: prefs.temperature,
+              });
+            }
+            console.log(`\n`);
+            
+            const response = await openRouterService.chatCompletion(messages, requestOptions);
 
             return {
               content: response.content,
               model: response.model,
               usage: response.usage,
             };
-          } catch (openRouterError) {
-            console.error('OpenRouter API error:', openRouterError);
-            // Fall through to default behavior - will handle below
+          } catch (openRouterApiError) {
+            const errorMessage = openRouterApiError instanceof Error ? openRouterApiError.message : String(openRouterApiError);
+            console.error('❌ OpenRouter API error:', errorMessage);
+            console.error('❌ Full error:', openRouterApiError);
+            // Store the error to handle it after the try-catch
+            openRouterError = new Error(`OpenRouter API failed: ${errorMessage}`);
+            // Don't re-throw here - let it fall through to be handled below
           }
         } else {
           console.log(`ℹ️  [LLM Service] No OpenRouter API key found in user's database record (userId: ${userId})`);
-          console.log(`ℹ️  [LLM Service] Falling back to default LLM (OpenAI/Ollama from env)`);
         }
       } catch (error) {
+        // Catch config/database errors
         console.error('Error checking OpenRouter config, falling back to default:', error);
-        // Fall through to default behavior
+        // Fall through to default behavior for config errors
       }
     }
 
-    // Default behavior: use OpenAI or Ollama
-    const selectedModel = model || this.defaultModel;
-
-    // If user has OpenRouter configured but it failed, don't silently fall back to Ollama
-    // Instead, try OpenAI if available, or give a clear error
-    if (openRouterAttempted && openRouterHadKey) {
-      // User has OpenRouter configured but it failed - try OpenAI as fallback
-      if (process.env.OPENAI_API_KEY) {
-        console.log('⚠️  OpenRouter failed, falling back to OpenAI');
-        return await this.callOpenAI(messages, { 
-          model: selectedModel, 
-          temperature: temperature ?? 0.7, 
-          max_tokens: max_tokens ?? 8000 
-        });
-      } else {
-        throw new Error('OpenRouter is configured but failed. Please check your API key in settings or configure OpenAI API key in environment variables.');
-      }
+    // If user has OpenRouter configured but it failed, throw clear error
+    if (openRouterAttempted && openRouterHadKey && openRouterError) {
+      // Re-throw the OpenRouter error with helpful context
+      throw new Error(`${openRouterError.message} Please check your API key and model name in settings. Common issues: invalid API key, incorrect model name format (e.g., "x-ai/grok-4.1-fast:free" should be "x-ai/grok-beta"), or model not available.`);
     }
 
-    // Normal fallback: OpenAI or Ollama
-    if (this.isLocal) {
-      return await this.callOllama(messages, { 
-        model: selectedModel, 
-        temperature: temperature ?? 0.7, 
-        max_tokens: max_tokens ?? 8000, 
-        thinking_mode 
-      });
-    } else {
-      return await this.callOpenAI(messages, { 
-        model: selectedModel, 
-        temperature: temperature ?? 0.7, 
-        max_tokens: max_tokens ?? 8000 
-      });
-    }
+    // If OpenRouter wasn't configured, user must configure it
+    throw new Error('No LLM service available. Please configure your OpenRouter API key in settings.');
   }
 
-  private async callOllama(
-    messages: LLMMessage[], 
-    options: { model: string; temperature: number; max_tokens: number; thinking_mode: boolean }
-  ): Promise<LLMResponse> {
-    try {
-      // Qwen3 Optimal Settings (from best practices)
-      // Thinking mode: temp=0.6, top_p=0.95, top_k=20, presence_penalty=1.5
-      // Non-thinking mode: temp=0.7, top_p=0.8, top_k=20, presence_penalty=1.5
-      const thinkingParams = {
-        temperature: 0.6,
-        top_p: 0.95,
-        top_k: 20,
-        mirostat: 0, // MinP equivalent
-        repeat_penalty: 1.5, // PresencePenalty equivalent
-      };
-
-      const normalParams = {
-        temperature: 0.7,
-        top_p: 0.8,
-        top_k: 20,
-        mirostat: 0, // MinP equivalent
-        repeat_penalty: 1.5, // PresencePenalty equivalent
-      };
-
-      const ollamaParams = options.thinking_mode ? thinkingParams : normalParams;
-
-      const response = await fetch(`${this.localEndpoint}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: options.model,
-          messages: messages,
-          stream: false,
-          options: {
-            ...ollamaParams,
-            num_predict: options.max_tokens,
-          }
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      return {
-        content: data.message?.content || '',
-        model: options.model,
-        usage: {
-          prompt_tokens: data.prompt_eval_count || 0,
-          completion_tokens: data.eval_count || 0,
-          total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
-        }
-      };
-    } catch (error) {
-      console.error('Ollama API error:', error);
-      throw new Error(`Failed to get response from Ollama: ${error}`);
-    }
-  }
-
-  private async callOpenAI(
-    messages: LLMMessage[], 
-    options: { model: string; temperature: number; max_tokens: number }
-  ): Promise<LLMResponse> {
-    try {
-      const openai = this.getOpenAIClient();
-      const response = await openai.chat.completions.create({
-        model: options.model,
-        messages: messages as any,
-        temperature: options.temperature,
-        max_tokens: options.max_tokens,
-      });
-
-      return {
-        content: response.choices[0]?.message?.content || '',
-        model: options.model,
-        usage: {
-          prompt_tokens: response.usage?.prompt_tokens || 0,
-          completion_tokens: response.usage?.completion_tokens || 0,
-          total_tokens: response.usage?.total_tokens || 0,
-        }
-      };
-    } catch (error) {
-      console.error('OpenAI API error:', error);
-      throw new Error('Failed to get AI response from OpenAI');
-    }
-  }
-
-  /**
-   * Check if local Ollama is available
-   */
-  async checkOllamaAvailability(): Promise<boolean> {
-    if (!this.isLocal) return false;
-    
-    try {
-      const response = await fetch(`${this.localEndpoint}/api/tags`);
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
 
   /**
    * Get available models (useful for debugging)
    */
   async getAvailableModels(): Promise<string[]> {
-    if (this.isLocal) {
-      try {
-        const response = await fetch(`${this.localEndpoint}/api/tags`);
-        if (response.ok) {
-          const data = await response.json();
-          return data.models?.map((m: any) => m.name) || [];
-        }
-      } catch (error) {
-        console.error('Error fetching Ollama models:', error);
-      }
-      return [];
-    } else {
-      return ['gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo'];
-    }
+    return ['gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo'];
   }
 
   /**
@@ -381,8 +335,7 @@ export class LLMService {
    */
   getServiceInfo() {
     return {
-      isLocal: this.isLocal,
-      endpoint: this.isLocal ? this.localEndpoint : 'OpenAI API',
+      provider: 'OpenRouter (user-configured API keys only)',
       defaultModel: this.defaultModel,
       environment: process.env.NODE_ENV,
     };
@@ -391,3 +344,4 @@ export class LLMService {
 
 // Singleton instance
 export const llmService = new LLMService();
+

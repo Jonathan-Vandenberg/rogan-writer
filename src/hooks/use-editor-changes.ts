@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export interface EditorChange {
   id: string;
@@ -20,10 +20,51 @@ export interface NewChapter {
   description: string;
 }
 
-export function useEditorChanges() {
-  const [changes, setChanges] = useState<EditorChange[]>([]);
-  const [newChapters, setNewChapters] = useState<NewChapter[]>([]);
-  const [currentChangeIndex, setCurrentChangeIndex] = useState(0);
+const STORAGE_KEY_PREFIX = 'editor-changes-';
+
+function getStorageKey(bookId: string): string {
+  return `${STORAGE_KEY_PREFIX}${bookId}`;
+}
+
+function loadFromStorage(bookId: string): { changes: EditorChange[]; newChapters: NewChapter[]; currentChangeIndex: number } | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const stored = localStorage.getItem(getStorageKey(bookId));
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Error loading editor changes from storage:', error);
+  }
+  return null;
+}
+
+function saveToStorage(bookId: string, changes: EditorChange[], newChapters: NewChapter[], currentChangeIndex: number) {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(getStorageKey(bookId), JSON.stringify({
+      changes,
+      newChapters,
+      currentChangeIndex,
+    }));
+  } catch (error) {
+    console.error('Error saving editor changes to storage:', error);
+  }
+}
+
+export function useEditorChanges(bookId: string) {
+  // Load from localStorage on mount
+  const stored = loadFromStorage(bookId);
+  const [changes, setChanges] = useState<EditorChange[]>(stored?.changes || []);
+  const [newChapters, setNewChapters] = useState<NewChapter[]>(stored?.newChapters || []);
+  const [currentChangeIndex, setCurrentChangeIndex] = useState(stored?.currentChangeIndex || 0);
+
+  // Save to localStorage whenever changes occur
+  useEffect(() => {
+    saveToStorage(bookId, changes, newChapters, currentChangeIndex);
+  }, [bookId, changes, newChapters, currentChangeIndex]);
 
   // Add new changes from editor agent
   const addChanges = useCallback((newChanges: Omit<EditorChange, 'status'>[]) => {
@@ -158,7 +199,15 @@ export function useEditorChanges() {
     setChanges([]);
     setNewChapters([]);
     setCurrentChangeIndex(0);
-  }, []);
+    // Clear from localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(getStorageKey(bookId));
+      } catch (error) {
+        console.error('Error clearing editor changes from storage:', error);
+      }
+    }
+  }, [bookId]);
 
   // Get accepted changes for applying
   const getAcceptedChanges = useCallback(() => {

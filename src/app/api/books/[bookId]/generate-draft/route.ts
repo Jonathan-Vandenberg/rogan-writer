@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 interface GenerateDraftRequest {
   replaceExisting?: boolean; // Whether to replace existing chapters
   preview?: boolean; // Just generate preview, don't save to DB
+  writingStylePrompt?: string; // User-provided writing style instructions
 }
 
 export async function POST(
@@ -26,7 +27,7 @@ export async function POST(
 
     const { bookId } = await params;
     const body: GenerateDraftRequest = await request.json();
-    const { replaceExisting = false, preview = false } = body;
+    const { replaceExisting = false, preview = false, writingStylePrompt } = body;
 
     // Verify book ownership
     const book = await prisma.book.findFirst({
@@ -55,10 +56,13 @@ export async function POST(
     }
 
     console.log(`Starting draft generation for book: ${book.title}`);
+    if (writingStylePrompt) {
+      console.log(`Using custom writing style prompt: ${writingStylePrompt.substring(0, 100)}...`);
+    }
 
     // Initialize AI Orchestrator and generate draft
     const aiOrchestrator = new AIOrchestrator();
-    const draft = await aiOrchestrator.generateBookDraft(bookId);
+    const draft = await aiOrchestrator.generateBookDraft(bookId, writingStylePrompt);
 
     if (preview) {
       // Store full draft in database temporarily with a special flag

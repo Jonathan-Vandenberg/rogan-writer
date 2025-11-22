@@ -30,15 +30,29 @@ model User {
 
   // OpenRouter API configuration
   openRouterApiKey          String? @db.Text // Encrypted API key
+  
+  // Model selections for each agent/feature
   openRouterEmbeddingModel String? // Selected model for embeddings (e.g., "openai/text-embedding-ada-002")
-  openRouterResearchModel   String? // Selected model for research
-  openRouterSuggestionsModel String? // Selected model for suggestions
-  openRouterDefaultModel    String? // Default model for general LLM tasks
+  openRouterEditorModel     String? // Selected model for editor agent
+  openRouterResearchModel   String? // Selected model for research agent
+  openRouterSuggestionsModel String? // Selected model for suggestions agent
+  openRouterChatModel       String? // Selected model for AI chat/book Q&A
+  openRouterTTSModel        String? // Selected model for text-to-speech/audiobooks
+  openRouterImageModel      String? // Selected model for image generation/cover art
   
   // Temperature settings (0-1, where 0.7 is default)
-  defaultModelTemperature   Float? @default(0.7) // Temperature for default model
-  researchModelTemperature  Float? @default(0.3) // Temperature for research model (lower for accuracy)
-  suggestionsModelTemperature Float? @default(0.8) // Temperature for suggestions model (higher for creativity)
+  editorModelTemperature    Float? @default(0.7) // Temperature for editor agent
+  researchModelTemperature  Float? @default(0.3) // Temperature for research agent (lower for accuracy)
+  suggestionsModelTemperature Float? @default(0.8) // Temperature for suggestions agent (higher for creativity)
+  chatModelTemperature      Float? @default(0.7) // Temperature for AI chat
+  
+  // TTS/Audiobook settings
+  ttsVoice                   String? @default("alloy") // Voice for TTS: alloy, echo, fable, onyx, nova, shimmer
+  ttsModel                   String? @default("tts-1") // TTS model: tts-1 or tts-1-hd
+  
+  // Per-model, per-agent preferences (JSON: { [agentType]: { [modelId]: { thinking?: boolean, temperature?: number, ... } } })
+  // Example: { "editor": { "x-ai/grok-beta": { thinking: true, temperature: 0.7 } } }
+  modelPreferences Json? @default("{}") @db.JsonB
 
   // NextAuth relationships
   accounts Account[]
@@ -569,6 +583,9 @@ enum ExportFormat {
   PDF
   TXT
   HTML
+  EPUB
+  MOBI
+  KINDLE
   MP3
 }
 

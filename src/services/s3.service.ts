@@ -22,6 +22,13 @@ interface UploadImageParams {
   contentType?: string;
 }
 
+interface UploadCoverImageParams {
+  imageBuffer: Buffer;
+  bookId: string;
+  fileName: string;
+  contentType?: string;
+}
+
 interface S3AudioFile {
   s3Key: string;
   url: string;
@@ -252,6 +259,50 @@ export class S3Service {
     } catch (error) {
       console.error('❌ Error uploading image to S3:', error);
       throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Upload cover image file to S3
+   */
+  async uploadCoverImage(params: UploadCoverImageParams): Promise<S3ImageFile> {
+    const { imageBuffer, bookId, fileName, contentType = 'image/png' } = params;
+
+    // Generate S3 key with organized folder structure for cover images
+    const s3Key = `covers/${bookId}/${fileName}`;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+        Body: imageBuffer,
+        ContentType: contentType,
+        Metadata: {
+          bookId,
+          uploadedAt: new Date().toISOString(),
+          type: 'cover',
+        },
+      });
+
+      await this.client.send(command);
+
+      // Generate public URL
+      const url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
+
+      // Generate signed URL (valid for 7 days)
+      const signedUrl = await this.getSignedUrl(s3Key, 7 * 24 * 60 * 60);
+
+      console.log(`✅ Cover image uploaded to S3: ${s3Key}`);
+
+      return {
+        s3Key,
+        url,
+        signedUrl,
+        size: imageBuffer.length,
+      };
+    } catch (error) {
+      console.error('❌ Error uploading cover image to S3:', error);
+      throw new Error(`Failed to upload cover image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

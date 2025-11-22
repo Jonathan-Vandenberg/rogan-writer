@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type') // 'all', 'chat', 'embeddings'
+    const type = searchParams.get('type') // 'all', 'chat', 'embeddings', 'tts', 'images'
     const testApiKey = searchParams.get('apiKey') // Optional API key for testing
 
     let apiKey: string
@@ -57,6 +57,10 @@ export async function GET(request: NextRequest) {
         models = await openRouterService.getEmbeddingModels()
       } else if (type === 'chat') {
         models = await openRouterService.getChatModels()
+      } else if (type === 'tts') {
+        models = await openRouterService.getTTSModels()
+      } else if (type === 'images') {
+        models = await openRouterService.getImageModels()
       } else {
         models = await openRouterService.getAvailableModels()
       }

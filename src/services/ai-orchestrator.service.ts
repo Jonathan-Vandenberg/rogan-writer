@@ -205,16 +205,19 @@ export class AIOrchestrator {
   /**
    * Generate a complete book draft from planning content
    */
-  async generateBookDraft(bookId: string): Promise<BookDraft> {
+  async generateBookDraft(bookId: string, writingStylePrompt?: string): Promise<BookDraft> {
     console.log(`🤖 AI Orchestrator: Generating book draft for ${bookId}...`);
     console.log(`🤖 AI Orchestrator: DraftAgent instance:`, !!this.draftAgent);
+    if (writingStylePrompt) {
+      console.log(`🤖 AI Orchestrator: Using custom writing style prompt`);
+    }
     
     if (!this.draftAgent) {
       throw new Error('DraftAgent not initialized');
     }
     
     try {
-      return await this.draftAgent.generateDraft(bookId);
+      return await this.draftAgent.generateDraft(bookId, writingStylePrompt);
     } catch (error) {
       console.error(`🤖 AI Orchestrator: Error generating book draft:`, error);
       throw error;

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import type { User } from "@prisma/client"
+import type { User, Prisma } from "@prisma/client"
 
 export class UserService {
   static async getUserById(id: string): Promise<User | null> {
@@ -26,7 +26,7 @@ export class UserService {
     })
   }
 
-  static async updateUser(id: string, data: Partial<User>): Promise<User> {
+  static async updateUser(id: string, data: Prisma.UserUpdateInput): Promise<User> {
     return await prisma.user.update({
       where: { id },
       data

@@ -18,9 +18,16 @@ import {
   Zap,
   Lightbulb,
   Eye,
-  Download
+  Download,
+  PenTool,
+  HelpCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { STYLE_PROMPTS, getStylePromptsByCategory, type StylePrompt } from "@/lib/style-prompts"
 
 interface DraftGeneratorProps {
   bookId: string;
@@ -76,6 +83,7 @@ const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className, open
   const [showConfirmation, setShowConfirmation] = React.useState(false);
   const [selectedChapters, setSelectedChapters] = React.useState<Set<number>>(new Set());
   const [isAccepting, setIsAccepting] = React.useState(false);
+  const [writingStylePrompt, setWritingStylePrompt] = React.useState("");
 
   // Load draft status when modal opens
   React.useEffect(() => {
@@ -112,7 +120,10 @@ const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className, open
       const response = await fetch(`/api/books/${bookId}/generate-draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preview: true })
+        body: JSON.stringify({ 
+          preview: true,
+          writingStylePrompt: writingStylePrompt.trim() || undefined
+        })
       });
       
       if (response.ok) {
@@ -208,7 +219,10 @@ const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className, open
       const response = await fetch(`/api/books/${bookId}/generate-draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replaceExisting })
+        body: JSON.stringify({ 
+          replaceExisting,
+          writingStylePrompt: writingStylePrompt.trim() || undefined
+        })
       });
       
       if (response.ok) {
@@ -290,6 +304,87 @@ const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className, open
             </Alert>
           ) : draftStatus ? (
             <div className="space-y-6">
+              {/* Writing Style Instructions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <PenTool className="h-5 w-5 text-purple-600" />
+                    Writing Style & Instructions
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-md">
+                        <p className="text-sm mb-2">Provide specific instructions about writing style, tone, and other book-related directions.</p>
+                        <p className="text-xs text-muted-foreground">
+                          Examples: "Write in a lyrical, poetic style with rich metaphors", "Use short, punchy sentences", "Include detailed sensory descriptions", "Maintain a dark, suspenseful tone throughout"
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </CardTitle>
+                  <CardDescription>
+                    Guide the AI on how you want your book written
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="style-template">Choose a Writing Style Template (Optional)</Label>
+                      <Select
+                        value=""
+                        onValueChange={(value) => {
+                          if (value) {
+                            const prompt = STYLE_PROMPTS.find(p => p.id === value);
+                            if (prompt) {
+                              setWritingStylePrompt(prompt.prompt);
+                            }
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="style-template">
+                          <SelectValue placeholder="Select a writing style template..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[400px]">
+                          {Object.entries(getStylePromptsByCategory()).map(([category, prompts]) => (
+                            <div key={category}>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                {category}
+                              </div>
+                              {prompts.map((prompt) => (
+                                <SelectItem key={prompt.id} value={prompt.id}>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{prompt.name}</span>
+                                    <span className="text-xs text-muted-foreground">{prompt.description}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </div>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Select a template to auto-fill the instructions below, or write your own custom instructions.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="writing-style">Writing Style Instructions</Label>
+                      <Textarea
+                        id="writing-style"
+                        placeholder="Select a template above or write custom instructions...&#10;&#10;Examples:&#10;- Write in third person limited perspective&#10;- Use vivid, descriptive language with rich metaphors&#10;- Include detailed sensory descriptions&#10;- Maintain a suspenseful, dark tone&#10;- Keep dialogue natural and realistic"
+                        value={writingStylePrompt}
+                        onChange={(e) => setWritingStylePrompt(e.target.value)}
+                        rows={8}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        These instructions will be applied to all generated chapters. Leave blank to use default writing guidelines.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Planning Content Summary */}
               <Card>
                 <CardHeader>
@@ -461,7 +556,8 @@ const DraftGenerator: React.FC<DraftGeneratorProps> = ({ bookId, className, open
                                   chapters: selectedChapterData,
                                   replaceExisting: true,
                                   draftSummary: draftPreview.summary,
-                                  draftStructure: draftPreview.structure
+                                  draftStructure: draftPreview.structure,
+                                  writingStylePrompt: writingStylePrompt.trim() || undefined
                                 })
                               });
                               
